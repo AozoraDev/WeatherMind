@@ -19,7 +19,10 @@ export function ButtonBlue({ className, ...props }: PresetButtonProps) {
 export function ButtonGreen({ className, ...props }: PresetButtonProps) {
   return (
     <Button
-      className={cn("bg-[#10b981] text-white hover:bg-white hover:text-[#10b981]", className)}
+      className={cn(
+        "bg-[#10b981] text-white hover:bg-white hover:text-[#10b981]",
+        className
+      )}
       {...props}
     />
   )

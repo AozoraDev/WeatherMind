@@ -30,6 +30,7 @@ export function DashboardNavbar({ email }: { email: string }) {
     "ai-agent": t("sidebar.aiAgent"),
     cities: t("sidebar.cities"),
     forecast: t("sidebar.forecast"),
+    history: t("sidebar.history"),
     settings: t("sidebar.settings"),
   }
 

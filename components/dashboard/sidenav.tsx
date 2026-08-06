@@ -1,6 +1,14 @@
 "use client"
 
-import { Bot, CloudSun, LayoutDashboard, MapPin, Settings, type LucideIcon } from "lucide-react"
+import {
+  Bot,
+  CloudSun,
+  History,
+  LayoutDashboard,
+  MapPin,
+  Settings,
+  type LucideIcon,
+} from "lucide-react"
 import Image from "next/image"
 import { useTranslations } from "next-intl"
 
@@ -15,11 +23,24 @@ export function Sidenav() {
 
   // 导航项配置：href 为空表示功能未上线，渲染为禁用占位
   const items: { label: string; href?: string; icon: LucideIcon }[] = [
-    { label: t("sidebar.dashboard"), href: "/dashboard", icon: LayoutDashboard },
+    {
+      label: t("sidebar.dashboard"),
+      href: "/dashboard",
+      icon: LayoutDashboard,
+    },
     { label: t("sidebar.aiAgent"), href: "/dashboard/ai-agent", icon: Bot },
     { label: t("sidebar.cities"), href: "/dashboard/cities", icon: MapPin },
-    { label: t("sidebar.forecast"), href: "/dashboard/forecast", icon: CloudSun },
-    { label: t("sidebar.settings"), href: "/dashboard/settings", icon: Settings },
+    {
+      label: t("sidebar.forecast"),
+      href: "/dashboard/forecast",
+      icon: CloudSun,
+    },
+    { label: t("sidebar.history"), href: "/dashboard/history", icon: History },
+    {
+      label: t("sidebar.settings"),
+      href: "/dashboard/settings",
+      icon: Settings,
+    },
   ]
 
   return (

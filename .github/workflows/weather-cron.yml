@@ -1,0 +1,30 @@
+# 每日天气定时采集：GitHub Actions cron 按 UTC 计算
+# 城市全为 Asia/Tokyo，「每日 0 点」取 JST 午夜 = 15:00 UTC（'0 15 * * *'）。
+# 若意图是 UTC 午夜，把表达式改为 '0 0 * * *'。
+name: Weather Cron
+
+on:
+  schedule:
+    - cron: "0 15 * * *"
+  workflow_dispatch: {} # 支持手动触发，便于联调（Actions → Run workflow）
+
+permissions:
+  contents: read
+
+jobs:
+  weather-cron:
+    name: 每日天气采集
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # 从 GitHub Secrets 注入，值须与部署环境（如 Vercel）的 WEATHER_CRON_SECRET 一致
+      WEATHER_CRON_SECRET: ${{ secrets.WEATHER_CRON_SECRET }}
+      # 部署根地址（不含末尾斜杠），从 GitHub Variables 读取；示例：https://weathermind.vercel.app
+      DEPLOY_URL: ${{ vars.WEATHER_DEPLOY_URL }}
+    steps:
+      - name: 触发采集路由并校验响应
+        run: |
+          # 路由校验 header 名固定为 x-weather-cron-secret；非 2xx 时 curl 带响应体退出非零，工作流标红便于排查
+          curl -sS --fail-with-body \
+            -H "x-weather-cron-secret: ${WEATHER_CRON_SECRET}" \
+            "${DEPLOY_URL}/api/cron/weather"

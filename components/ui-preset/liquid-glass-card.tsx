@@ -23,7 +23,7 @@ export function LiquidGlassCard({
       {/* 彩色光斑：蓝色光源，放大模糊后形成液态流动色，置于玻璃层之下 */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -left-16 -top-16 size-40 rounded-full bg-[#2563eb]/40 blur-3xl"
+        className="pointer-events-none absolute -top-16 -left-16 size-40 rounded-full bg-[#2563eb]/40 blur-3xl"
       />
       {/* 磨砂玻璃层：淡蓝到白色自上而下渐变 + 背景模糊，顶部一条内高光模拟玻璃折射边缘 */}
       <div

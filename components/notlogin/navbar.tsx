@@ -23,12 +23,20 @@ export async function Navbar() {
         {/* 语言切换：置于登录按钮左侧 */}
         <LanguageToggle />
         {/* 登录入口：渲染成 Link 跳转登录页，保持按钮样式与语义 */}
-        <ButtonBlue size="lg" nativeButton={false} render={<Link href="/login" />}>
+        <ButtonBlue
+          size="lg"
+          nativeButton={false}
+          render={<Link href="/login" />}
+        >
           <CircleUserRound aria-hidden="true" />
           {t("login")}
         </ButtonBlue>
         {/* 注册入口：渲染成 Link 跳转注册页，保持按钮样式与语义 */}
-        <ButtonBlue size="lg" nativeButton={false} render={<Link href="/register" />}>
+        <ButtonBlue
+          size="lg"
+          nativeButton={false}
+          render={<Link href="/register" />}
+        >
           <LogIn aria-hidden="true" />
           {t("register")}
         </ButtonBlue>

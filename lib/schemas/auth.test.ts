@@ -10,7 +10,10 @@ import {
 
 // 断言 safeParse 失败且指定路径的校验 message 符合预期
 function expectMessage(
-  result: { success: boolean; error?: { issues: { path: PropertyKey[]; message: string }[] } },
+  result: {
+    success: boolean
+    error?: { issues: { path: PropertyKey[]; message: string }[] }
+  },
   path: string,
   message: string
 ) {
@@ -22,7 +25,9 @@ function expectMessage(
 
 describe("loginSchema", () => {
   it("合法凭据通过", () => {
-    expect(loginSchema.safeParse({ email: "a@b.com", password: "123456" }).success).toBe(true)
+    expect(
+      loginSchema.safeParse({ email: "a@b.com", password: "123456" }).success
+    ).toBe(true)
   })
 
   it("非法邮箱报 invalidEmail", () => {
@@ -59,7 +64,9 @@ describe("registerSchema", () => {
   })
 
   it("step2（8 位验证码）通过", () => {
-    expect(registerSchema.safeParse({ ...valid, code: "12345678" }).success).toBe(true)
+    expect(
+      registerSchema.safeParse({ ...valid, code: "12345678" }).success
+    ).toBe(true)
   })
 
   it("两次密码不一致报 passwordMismatch", () => {
@@ -80,7 +87,11 @@ describe("registerSchema", () => {
 
   it("弱密码报 passwordTooShort", () => {
     expectMessage(
-      registerSchema.safeParse({ ...valid, password: "12345", confirmPassword: "12345" }),
+      registerSchema.safeParse({
+        ...valid,
+        password: "12345",
+        confirmPassword: "12345",
+      }),
       "password",
       "passwordTooShort"
     )
@@ -89,7 +100,9 @@ describe("registerSchema", () => {
 
 describe("verifySchema", () => {
   it("邮箱 + 8 位验证码通过", () => {
-    expect(verifySchema.safeParse({ email: "a@b.com", code: "12345678" }).success).toBe(true)
+    expect(
+      verifySchema.safeParse({ email: "a@b.com", code: "12345678" }).success
+    ).toBe(true)
   })
 
   it("非法验证码报 invalidCode", () => {
@@ -127,7 +140,11 @@ describe("forgotSchema", () => {
 
   it("新密码不足 6 位报 passwordTooShort", () => {
     expectMessage(
-      forgotSchema.safeParse({ ...valid, newPassword: "12345", confirmPassword: "12345" }),
+      forgotSchema.safeParse({
+        ...valid,
+        newPassword: "12345",
+        confirmPassword: "12345",
+      }),
       "newPassword",
       "passwordTooShort"
     )

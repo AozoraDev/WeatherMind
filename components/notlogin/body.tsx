@@ -39,14 +39,24 @@ export async function Body() {
           {/* 操作入口：蓝色引导登录，绿色跳转 GitHub 仓库 */}
           <div className="flex flex-wrap items-center justify-center gap-3">
             {/* 登录启动仪表盘：渲染成 Link 跳转登录页 */}
-            <ButtonBlue size="lg" nativeButton={false} render={<Link href="/login" />}>
+            <ButtonBlue
+              size="lg"
+              nativeButton={false}
+              render={<Link href="/login" />}
+            >
               {t("launchDashboard")}
             </ButtonBlue>
             {/* GitHub 仓库：外链新窗口打开，render 成 <a> 保持按钮样式；nativeButton 置 false 以匹配非按钮语义 */}
             <ButtonGreen
               size="lg"
               nativeButton={false}
-              render={<a href="https://github.com/AozoraDev/WeatherMind" target="_blank" rel="noopener noreferrer" />}
+              render={
+                <a
+                  href="https://github.com/AozoraDev/WeatherMind"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              }
             >
               <GithubIcon />
               {t("github")}
@@ -61,9 +71,13 @@ export async function Body() {
               <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#2563eb]/10 text-[#2563eb]">
                 <Layers className="size-6" />
               </div>
-              <h3 className="text-lg font-semibold text-foreground">{t("fusionTitle")}</h3>
+              <h3 className="text-lg font-semibold text-foreground">
+                {t("fusionTitle")}
+              </h3>
             </div>
-            <p className="pl-16 text-sm text-muted-foreground">{t("fusionDesc")}</p>
+            <p className="pl-16 text-sm text-muted-foreground">
+              {t("fusionDesc")}
+            </p>
           </LiquidGlassCard>
 
           <LiquidGlassCard className="col-span-1 flex flex-col justify-center gap-3 p-6 text-left md:col-span-6">
@@ -71,9 +85,13 @@ export async function Body() {
               <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#10b981]/10 text-[#10b981]">
                 <Sparkles className="size-6" />
               </div>
-              <h3 className="text-lg font-semibold text-foreground">{t("adviceTitle")}</h3>
+              <h3 className="text-lg font-semibold text-foreground">
+                {t("adviceTitle")}
+              </h3>
             </div>
-            <p className="pl-16 text-sm text-muted-foreground">{t("adviceDesc")}</p>
+            <p className="pl-16 text-sm text-muted-foreground">
+              {t("adviceDesc")}
+            </p>
           </LiquidGlassCard>
         </div>
       </GridBackground>

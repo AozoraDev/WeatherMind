@@ -7,12 +7,7 @@ import { updateSession } from "./lib/supabase/proxy"
 const intlMiddleware = createMiddleware(routing)
 
 // 未登录时可访问的白名单路径（不含 locale 前缀）：根路径落地页/登录/注册/忘记密码
-const PUBLIC_PATHS = new Set([
-  "/",
-  "/login",
-  "/register",
-  "/forgot-password",
-])
+const PUBLIC_PATHS = new Set(["/", "/login", "/register", "/forgot-password"])
 
 // 取请求对应的 locale：zh 为默认不带前缀，en 带 /en 前缀
 // （导出供单测直接验证守卫路径推导）

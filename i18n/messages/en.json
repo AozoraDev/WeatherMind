@@ -82,6 +82,7 @@
       "aiAgent": "AI Agent",
       "cities": "Cities",
       "forecast": "Forecast",
+      "history": "History",
       "settings": "Settings"
     },
     "aiAgent": {
@@ -90,11 +91,119 @@
     },
     "cities": {
       "title": "Cities",
-      "desc": "City management is under development — stay tuned"
+      "desc": "Currently supported major Japanese cities",
+      "add": "Add city",
+      "dialogTitle": "Add city",
+      "dialogDesc": "Fill in the new city's details; weather collection starts after saving",
+      "columns": {
+        "name": "City",
+        "lat": "Latitude",
+        "lon": "Longitude",
+        "timezone": "Timezone",
+        "showForecast": "Forecast",
+        "showHistory": "History",
+        "actions": "Actions"
+      },
+      "empty": "No cities yet",
+      "delete": "Delete",
+      "deleteConfirmTitle": "Delete city",
+      "deleteConfirmDesc": "All weather data for this city will also be deleted. This cannot be undone.",
+      "deleteConfirmConfirm": "Delete",
+      "deleting": "Deleting…",
+      "cancel": "Cancel",
+      "form": {
+        "nameJa": "Japanese name",
+        "nameEn": "English name",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "timezone": "Timezone",
+        "submit": "Add",
+        "submitting": "Adding…",
+        "errors": {
+          "cityNameRequired": "Please enter a city name",
+          "invalidLatitude": "Latitude must be a number between -90 and 90",
+          "invalidLongitude": "Longitude must be a number between -180 and 180",
+          "timezoneRequired": "Please enter a timezone"
+        }
+      },
+      "success": {
+        "created": "City added",
+        "deleted": "City deleted"
+      },
+      "errors": {
+        "duplicate": "This city already exists",
+        "notFound": "City not found or already deleted",
+        "unauthorized": "Admins only",
+        "invalidInput": "Invalid input. Please check and retry.",
+        "generic": "Something went wrong. Please try again."
+      }
     },
     "forecast": {
       "title": "Forecast",
-      "desc": "Forecast features are under development — stay tuned"
+      "desc": "Live multi-source weather comparison for major Japanese cities",
+      "selectCity": "City",
+      "refresh": "Refresh",
+      "refreshing": "Collecting…",
+      "refreshSuccess": "Weather data updated",
+      "empty": "No weather data yet — click refresh to collect",
+      "noData": "No data",
+      "lastUpdated": "Last updated: {time}",
+      "status": {
+        "running": "Collecting",
+        "success": "Success",
+        "partial": "Partial failure",
+        "failed": "Failed"
+      },
+      "sources": {
+        "open-meteo": "Open-Meteo",
+        "openweather": "OpenWeatherMap",
+        "weatherapi": "WeatherAPI"
+      },
+      "fields": {
+        "humidity": "Humidity",
+        "wind": "Wind"
+      },
+      "errors": {
+        "unauthorized": "Please log in first",
+        "generic": "Refresh failed. Please try again."
+      }
+    },
+    "history": {
+      "title": "Weather History",
+      "desc": "Daily weather snapshots for the past 6 days and today",
+      "selectCity": "City",
+      "refresh": "Refresh",
+      "refreshing": "Collecting…",
+      "refreshSuccess": "Weather data updated",
+      "empty": "No history yet — click refresh to collect daily snapshots",
+      "noData": "No data",
+      "sources": {
+        "open-meteo": "Open-Meteo",
+        "openweather": "OpenWeatherMap",
+        "weatherapi": "WeatherAPI"
+      },
+      "columns": {
+        "date": "Date",
+        "platform": "Platform",
+        "high": "High",
+        "low": "Low",
+        "precipitation": "Precipitation",
+        "condition": "Condition"
+      },
+      "categories": {
+        "clear": "Clear",
+        "partlyCloudy": "Partly cloudy",
+        "cloudy": "Cloudy",
+        "fog": "Fog",
+        "rain": "Rain",
+        "snow": "Snow",
+        "storm": "Thunderstorm",
+        "other": "Other"
+      },
+      "errors": {
+        "unauthorized": "Please log in first",
+        "generic": "Refresh failed. Please try again."
+      }
     },
     "settings": {
       "title": "Settings",

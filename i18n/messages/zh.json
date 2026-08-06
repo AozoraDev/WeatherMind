@@ -82,6 +82,7 @@
       "aiAgent": "AI 助手",
       "cities": "城市",
       "forecast": "预报",
+      "history": "历史",
       "settings": "设置"
     },
     "aiAgent": {
@@ -90,11 +91,119 @@
     },
     "cities": {
       "title": "城市",
-      "desc": "城市管理功能开发中，敬请期待"
+      "desc": "目前支持的日本主要城市",
+      "add": "新增城市",
+      "dialogTitle": "新增城市",
+      "dialogDesc": "填写新城市信息，保存后即可开始采集天气",
+      "columns": {
+        "name": "城市",
+        "lat": "纬度",
+        "lon": "经度",
+        "timezone": "时区",
+        "showForecast": "显示预报",
+        "showHistory": "显示历史",
+        "actions": "操作"
+      },
+      "empty": "暂无城市",
+      "delete": "删除",
+      "deleteConfirmTitle": "删除城市",
+      "deleteConfirmDesc": "将同时删除该城市的所有天气数据，此操作不可撤销。",
+      "deleteConfirmConfirm": "确认删除",
+      "deleting": "删除中…",
+      "cancel": "取消",
+      "form": {
+        "nameJa": "日文名",
+        "nameEn": "英文名",
+        "latitude": "纬度",
+        "longitude": "经度",
+        "timezone": "时区",
+        "submit": "添加",
+        "submitting": "添加中…",
+        "errors": {
+          "cityNameRequired": "请输入城市名称",
+          "invalidLatitude": "纬度需为 -90 ~ 90 之间的数字",
+          "invalidLongitude": "经度需为 -180 ~ 180 之间的数字",
+          "timezoneRequired": "请输入时区"
+        }
+      },
+      "success": {
+        "created": "城市添加成功",
+        "deleted": "城市已删除"
+      },
+      "errors": {
+        "duplicate": "该城市已存在",
+        "notFound": "城市不存在或已被删除",
+        "unauthorized": "仅管理员可操作",
+        "invalidInput": "输入有误，请检查后重试",
+        "generic": "操作失败，请稍后再试"
+      }
     },
     "forecast": {
       "title": "预报",
-      "desc": "预报功能开发中，敬请期待"
+      "desc": "日本主要城市多源天气实时对比",
+      "selectCity": "城市",
+      "refresh": "刷新",
+      "refreshing": "采集中…",
+      "refreshSuccess": "天气数据已更新",
+      "empty": "暂无天气数据，点击刷新采集",
+      "noData": "暂无数据",
+      "lastUpdated": "最近更新：{time}",
+      "status": {
+        "running": "采集中",
+        "success": "采集成功",
+        "partial": "部分失败",
+        "failed": "采集失败"
+      },
+      "sources": {
+        "open-meteo": "Open-Meteo",
+        "openweather": "OpenWeatherMap",
+        "weatherapi": "WeatherAPI"
+      },
+      "fields": {
+        "humidity": "湿度",
+        "wind": "风"
+      },
+      "errors": {
+        "unauthorized": "请先登录",
+        "generic": "刷新失败，请稍后再试"
+      }
+    },
+    "history": {
+      "title": "历史天气",
+      "desc": "近 6 天与今日的每日天气快照",
+      "selectCity": "城市",
+      "refresh": "刷新",
+      "refreshing": "采集中…",
+      "refreshSuccess": "天气数据已更新",
+      "empty": "暂无历史数据，点击刷新采集每日快照",
+      "noData": "暂无数据",
+      "sources": {
+        "open-meteo": "Open-Meteo",
+        "openweather": "OpenWeatherMap",
+        "weatherapi": "WeatherAPI"
+      },
+      "columns": {
+        "date": "日期",
+        "platform": "平台",
+        "high": "最高温",
+        "low": "最低温",
+        "precipitation": "降水",
+        "condition": "天气"
+      },
+      "categories": {
+        "clear": "晴",
+        "partlyCloudy": "多云间晴",
+        "cloudy": "阴",
+        "fog": "雾",
+        "rain": "雨",
+        "snow": "雪",
+        "storm": "雷暴",
+        "other": "其他"
+      },
+      "errors": {
+        "unauthorized": "请先登录",
+        "generic": "刷新失败，请稍后再试"
+      }
     },
     "settings": {
       "title": "设置",
