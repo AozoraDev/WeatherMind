@@ -1,0 +1,111 @@
+{
+  "metadata": {
+    "title": "WeatherMind",
+    "description": "Next-generation weather forecasting platform"
+  },
+  "nav": {
+    "login": "Log in",
+    "register": "Sign up",
+    "back": "Back"
+  },
+  "login": {
+    "title": "Log in",
+    "subtitle": "Welcome back — log in to continue"
+  },
+  "register": {
+    "title": "Sign up",
+    "subtitle": "Create an account and verify your email to get started"
+  },
+  "forgot": {
+    "title": "Reset password",
+    "subtitle": "Enter your new password first, then verify the code"
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "code": "Verification code",
+    "newPassword": "New password",
+    "loginSubmit": "Log in",
+    "sendCode": "Send verification code",
+    "verifySubmit": "Verify & sign up",
+    "verifyResetSubmit": "Verify & reset password",
+    "resendCode": "Resend code",
+    "codeSent": "A verification code was sent to {email}. Please check your inbox.",
+    "toRegister": "Don't have an account? Sign up",
+    "toLogin": "Already have an account? Log in",
+    "forgotLink": "Forgot password?",
+    "success": {
+      "login": "Logged in successfully",
+      "codeSent": "A verification code has been sent. Please check your email.",
+      "registered": "Account created successfully",
+      "passwordReset": "Password reset successfully"
+    },
+    "errors": {
+      "invalidEmail": "Please enter a valid email address",
+      "passwordTooShort": "Password must be at least 6 characters",
+      "passwordMismatch": "Passwords do not match",
+      "passwordSameAsOld": "New password must be different from your current password",
+      "invalidCode": "Please enter the 8-digit code",
+      "invalidCredentials": "Incorrect email or password",
+      "emailNotConfirmed": "Email not verified yet. Please check your inbox.",
+      "userExists": "This email is already registered",
+      "invalidOtp": "Invalid or expired verification code",
+      "rateLimited": "Too many requests. Please try again later.",
+      "userNotFound": "This email is not registered",
+      "invalidInput": "Invalid input. Please check and retry.",
+      "network": "Network error. Please try again later.",
+      "generic": "Something went wrong. Please try again later."
+    }
+  },
+  "landing": {
+    "title": "Next-generation weather intelligence",
+    "subtitle": "AI-powered multi-source data fusion for a smarter experience.",
+    "launchDashboard": "Log in to open the dashboard",
+    "github": "GitHub",
+    "realtime": "Real-time weather",
+    "realtimeDesc": "Minute-level updates",
+    "city": "City tracking",
+    "cityDesc": "Subscribe to multiple cities",
+    "forecast": "Smart forecast",
+    "forecastDesc": "Personalized alerts",
+    "fusionTitle": "Multi-source fusion",
+    "fusionDesc": "Compare data across platforms to eliminate single-source bias.",
+    "adviceTitle": "Personalized recommendations",
+    "adviceDesc": "Smart outdoor plans from high-precision forecasts and your habits — weather that serves people."
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "desc": "Weather features are under development — stay tuned",
+    "sidebar": {
+      "dashboard": "Dashboard",
+      "aiAgent": "AI Agent",
+      "cities": "Cities",
+      "forecast": "Forecast",
+      "settings": "Settings"
+    },
+    "aiAgent": {
+      "title": "AI Agent",
+      "desc": "AI Agent features are under development — stay tuned"
+    },
+    "cities": {
+      "title": "Cities",
+      "desc": "City management is under development — stay tuned"
+    },
+    "forecast": {
+      "title": "Forecast",
+      "desc": "Forecast features are under development — stay tuned"
+    },
+    "settings": {
+      "title": "Settings",
+      "desc": "Settings are under development — stay tuned"
+    },
+    "logout": "Log out",
+    "success": {
+      "logout": "Logged out"
+    },
+    "errors": {
+      "logout": "Failed to log out. Please try again."
+    }
+  }
+}

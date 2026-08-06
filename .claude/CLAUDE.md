@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-WeatherMind：Next.js 16.2.6（App Router）+ React 19.2.4 + Tailwind CSS 4 + shadcn/ui（基于 @base-ui/react）+ next-themes（`d` 键切明暗，默认跟随系统）+ pnpm + TypeScript strict。**天气功能尚未开发**，`app/page.tsx` 仍是模板页，`lib/`、`hooks/`、`components/` 待展开。
+WeatherMind：Next.js 16.2.6（App Router）+ React 19.2.4 + Tailwind CSS 4 + shadcn/ui（基于 @base-ui/react）+ pnpm + TypeScript strict。仅浅色模式（无明暗切换、无 next-themes）。**天气功能尚未开发**，`app/page.tsx` 仍是模板页，`lib/`、`hooks/`、`components/` 待展开。
 
 ## 命令
 

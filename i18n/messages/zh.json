@@ -1,0 +1,111 @@
+{
+  "metadata": {
+    "title": "WeatherMind",
+    "description": "下一代天气预测平台"
+  },
+  "nav": {
+    "login": "登录",
+    "register": "注册",
+    "back": "返回"
+  },
+  "login": {
+    "title": "登录",
+    "subtitle": "欢迎回来，登录后开启天气智能体验"
+  },
+  "register": {
+    "title": "注册",
+    "subtitle": "创建账号，验证邮箱验证码后即可使用"
+  },
+  "forgot": {
+    "title": "重置密码",
+    "subtitle": "先输入新密码，验证邮箱验证码后生效"
+  },
+  "auth": {
+    "email": "邮箱",
+    "password": "密码",
+    "confirmPassword": "确认密码",
+    "code": "验证码",
+    "newPassword": "新密码",
+    "loginSubmit": "登录",
+    "sendCode": "发送验证码",
+    "verifySubmit": "验证并注册",
+    "verifyResetSubmit": "验证并重置密码",
+    "resendCode": "重新发送验证码",
+    "codeSent": "验证码已发送至 {email}，请查收邮件",
+    "toRegister": "还没有账号？去注册",
+    "toLogin": "已有账号？去登录",
+    "forgotLink": "忘记密码？",
+    "success": {
+      "login": "登录成功",
+      "codeSent": "验证码已发送，请查收邮件",
+      "registered": "注册成功",
+      "passwordReset": "密码已重置"
+    },
+    "errors": {
+      "invalidEmail": "请输入有效的邮箱地址",
+      "passwordTooShort": "密码至少 6 位",
+      "passwordMismatch": "两次输入的密码不一致",
+      "passwordSameAsOld": "新密码不能与旧密码相同",
+      "invalidCode": "请输入 8 位数字验证码",
+      "invalidCredentials": "邮箱或密码错误",
+      "emailNotConfirmed": "邮箱尚未验证，请先查收验证邮件",
+      "userExists": "该邮箱已注册",
+      "invalidOtp": "验证码无效或已过期",
+      "rateLimited": "发送过于频繁，请稍后再试",
+      "userNotFound": "该邮箱未注册",
+      "invalidInput": "输入有误，请检查后重试",
+      "network": "网络异常，请稍后再试",
+      "generic": "操作失败，请稍后再试"
+    }
+  },
+  "landing": {
+    "title": "下一代气象智能",
+    "subtitle": "多数据源融合与AI加持，提供更智能的体验。",
+    "launchDashboard": "登录启动仪表盘",
+    "github": "GitHub",
+    "realtime": "实时天气",
+    "realtimeDesc": "分钟级更新",
+    "city": "城市关注",
+    "cityDesc": "多城市订阅",
+    "forecast": "智能预报",
+    "forecastDesc": "个性化推送",
+    "fusionTitle": "多数据源融合",
+    "fusionDesc": "对比多个平台数据，消除单一数据源偏差",
+    "adviceTitle": "个性化建议",
+    "adviceDesc": "根据高精度预测和您的个人习惯，智能生成户外活动规划，让天气服务于人"
+  },
+  "dashboard": {
+    "title": "仪表盘",
+    "desc": "天气功能开发中，敬请期待",
+    "sidebar": {
+      "dashboard": "仪表盘",
+      "aiAgent": "AI 助手",
+      "cities": "城市",
+      "forecast": "预报",
+      "settings": "设置"
+    },
+    "aiAgent": {
+      "title": "AI 助手",
+      "desc": "AI 助手功能开发中，敬请期待"
+    },
+    "cities": {
+      "title": "城市",
+      "desc": "城市管理功能开发中，敬请期待"
+    },
+    "forecast": {
+      "title": "预报",
+      "desc": "预报功能开发中，敬请期待"
+    },
+    "settings": {
+      "title": "设置",
+      "desc": "设置功能开发中，敬请期待"
+    },
+    "logout": "退出登录",
+    "success": {
+      "logout": "已退出登录"
+    },
+    "errors": {
+      "logout": "退出失败，请稍后再试"
+    }
+  }
+}
