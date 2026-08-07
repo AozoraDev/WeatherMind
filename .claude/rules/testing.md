@@ -1,16 +1,23 @@
-# 测试范围（何时写测试）
+# 测试范围
 
-写逻辑代码时评估是否补测试：**只测有实际价值的部分，不过度测试**。确定要写，先调用 skill `vitest`。
+只测有实际价值的，不过度测试。确定要写，先调 skill `vitest`。
 
-**需要测**：
-- 复杂业务 / 纯函数：天气换算、日期格式化、单位换算、状态推导
-- Zod schema 校验边界：字段缺失、类型漂移、非法输入
-- fetch 封装 / API 解析层：`res.ok` 分支、错误兜底、断网
-- 跨模块集成：取数 → 渲染 → 提交链路
+**需测**：复杂纯函数（天气换算/日期格式化/状态推导）、Zod 校验边界（缺失/漂移/非法）、fetch 封装（`res.ok` 分支/兜底/断网）、跨模块集成链路（取数→渲染→提交）。
+**不测**：纯展示组件、shadcn 模板、内部可信数据、一行 if 可表达、一次性代码。
+原则：覆盖关键分支与边界即可，不追 100%。
 
-**不需要测**：
-- 纯展示组件、shadcn 生成的 UI、模板页面
-- 内部可信数据（TS 已保证类型）、一行 if 可表达的约束
-- 显而易见的一次性代码
+## 覆盖率（Codecov）
 
-原则：覆盖关键分支与边界即可，不追求 100% 覆盖率。
+CI 采集上报，是**回归门禁**而非目标：`pnpm test:coverage`，config 见 `codecov.yml`。
+
+- 只统计 `lib/**`、`supabase/**`（vitest.config.ts include），UI/模板不计入
+- CI test job 跑 `test:coverage` 后 codecov-action@v5 上传，OIDC 无需 token（ci.yml）
+- 门禁 `target:auto` + `threshold:1%`：PR 不得低于基准 1% 以上，否则失败；评论展示 diff 覆盖
+- 覆盖率 ≠ 测试有效，有效性看变异测试
+
+## 变异测试（Stryker）
+
+验证测试**有效性**：`pnpm test:mutation`，config 见 `stryker.config.json`，用法见 skill `vitest`。
+
+- 只变异 `lib/**/*.ts`；PR 定向变异变更文件并评论，main 推送/每晚/手动全量（mutation.yml）
+- **break 阈值 80%**：低于则 CI 失败。Survived＝该行为没断言兜住，补断言或拆用例，**别删断言降标准**
