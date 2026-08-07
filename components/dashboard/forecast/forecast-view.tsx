@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { RefreshCw } from "lucide-react"
 import { useLocale, useTranslations } from "next-intl"
 import { useMutation } from "@tanstack/react-query"
@@ -24,50 +23,36 @@ import { WeatherError } from "@/lib/weather/errors"
 import type { WeatherSource } from "@/lib/schemas/weather"
 import type { CityRow, CurrentRow, RunRow } from "@/lib/weather/view-types"
 
-// 预报页视图：城市下拉选中单个城市 + 该城三源当前天气卡片 + 手动刷新（仅管理员）+ 最近运行状态
+// 预报页视图：服务端已按 ?city= 解析出唯一城市，这里展示该城三源当前天气卡片 + 手动刷新（仅管理员）+ 最近运行状态；
+// 下拉切换城市即导航到新 ?city= 的预报页，由服务端重取该城数据
 export function ForecastView({
   cities,
+  selectedCityId,
   currents,
   latestRun,
   isAdmin,
-  // 从 URL ?city= 带入的预选城市 name_en；无效值会被下方初始化逻辑兜底回退
-  initialCityName,
 }: {
   cities: CityRow[]
+  selectedCityId: string
   currents: CurrentRow[]
   latestRun: RunRow | null
   isAdmin: boolean
-  initialCityName?: string
 }) {
   const t = useTranslations("dashboard.forecast")
   const locale = useLocale()
   const router = useRouter()
   const toast = useToast()
 
-  // 默认选中 URL 带入的 name_en（需在启用城市中），否则回退东京，再退到第一个城市
-  const [selectedCityId, setSelectedCityId] = useState(
-    () =>
-      cities.find(
-        (c) => c.name_en.toLowerCase() === (initialCityName ?? "").toLowerCase()
-      )?.id ??
-      cities.find((c) => c.name_en.toLowerCase() === "tokyo")?.id ??
-      cities[0]?.id ??
-      ""
-  )
-
-  // 选中城市同步到 URL ?city=<name_en>，与城市列表页「显示预报」入口的地址栏形态一致；
-  // 侧边栏直接进预报页时初始会补上默认城市参数，下拉切换后地址也跟随更新
-  useEffect(() => {
-    if (!selectedCityId) return
-    const selectedName = cities.find((c) => c.id === selectedCityId)?.name_en
-    if (!selectedName) return
-    // 初始值已与 URL 一致（城市列表页跳转场景）时跳过，避免无谓重复导航
-    if (initialCityName?.toLowerCase() === selectedName.toLowerCase()) return
-    router.replace(
-      { pathname: "/dashboard/forecast", query: { city: selectedName } },
-      { scroll: false }
-    )
-  }, [selectedCityId, initialCityName, cities, router])
+  // 切换城市 = 导航到带新 ?city= 的预报页，服务端按参数重取单城数据
+  const handleCityChange = (cityId: string) => {
+    const city = cities.find((c) => c.id === cityId)
+    if (city) {
+      router.push(
+        { pathname: "/dashboard/forecast", query: { city: city.name_en } },
+        { scroll: false }
+      )
+    }
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -145,7 +130,7 @@ export function ForecastView({
               </span>
               <Select
                 value={selectedCityId}
-                onValueChange={(v) => v && setSelectedCityId(String(v))}
+                onValueChange={(v) => v && handleCityChange(String(v))}
                 items={cityLabels}
               >
                 <SelectTrigger className="w-44">

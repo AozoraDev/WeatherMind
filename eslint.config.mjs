@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // 覆盖率产物（Vitest 生成）不入 lint
+    "coverage/**",
   ]),
 ]);
 

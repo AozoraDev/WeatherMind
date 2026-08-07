@@ -1,7 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { RefreshCw } from "lucide-react"
+import { History, RefreshCw } from "lucide-react"
 import { useLocale, useTranslations } from "next-intl"
 import { useMutation } from "@tanstack/react-query"
 
@@ -20,7 +19,10 @@ import {
 } from "@/components/ui/select"
 import { useRouter } from "@/i18n/navigation"
 import { cn, formatWeatherNumber } from "@/lib/utils"
-import { refreshWeatherAction } from "@/lib/weather/actions"
+import {
+  backfillWeatherAction,
+  refreshWeatherAction,
+} from "@/lib/weather/actions"
 import { WeatherError } from "@/lib/weather/errors"
 import {
   conditionCategorySchema,
@@ -31,48 +33,34 @@ import type { CityRow, DailyRow } from "@/lib/weather/view-types"
 // 合法归一分类集合，用于把 DB 文本安全映射到 i18n 文案（非法值回退源文案）
 const VALID_CATEGORIES = new Set<string>(conditionCategorySchema.options)
 
-// 历史天气视图：城市下拉 + 近 7 天每日快照表格（平台列区分三个数据源）+ 手动刷新按钮（仅管理员）
+// 历史天气视图：服务端已按 ?city= 解析出唯一城市并只取该城近 7 天快照，这里做表格 + 图表展示；
+// 下拉切换城市即导航到新 ?city= 的历史页，由服务端重取该城数据
 export function HistoryView({
   cities,
+  selectedCityId,
   rows,
   isAdmin,
-  // 从 URL ?city= 带入的预选城市 name_en；无效值会被下方初始化逻辑兜底回退
-  initialCityName,
 }: {
   cities: CityRow[]
+  selectedCityId: string
   rows: DailyRow[]
   isAdmin: boolean
-  initialCityName?: string
 }) {
   const t = useTranslations("dashboard.history")
   const locale = useLocale()
   const router = useRouter()
   const toast = useToast()
 
-  // 默认选中 URL 带入的 name_en（需在启用城市中），否则回退东京，再退到第一个城市
-  const [selectedCityId, setSelectedCityId] = useState(
-    () =>
-      cities.find(
-        (c) => c.name_en.toLowerCase() === (initialCityName ?? "").toLowerCase()
-      )?.id ??
-      cities.find((c) => c.name_en.toLowerCase() === "tokyo")?.id ??
-      cities[0]?.id ??
-      ""
-  )
-
-  // 选中城市同步到 URL ?city=<name_en>，保证与城市列表页「显示历史」入口的地址栏形态一致；
-  // 侧边栏直接进历史页时初始会补上默认城市参数，下拉切换后地址也跟随更新
-  useEffect(() => {
-    if (!selectedCityId) return
-    const selectedName = cities.find((c) => c.id === selectedCityId)?.name_en
-    if (!selectedName) return
-    // 初始值已与 URL 一致（城市列表页跳转场景）时跳过，避免无谓重复导航
-    if (initialCityName?.toLowerCase() === selectedName.toLowerCase()) return
-    router.replace(
-      { pathname: "/dashboard/history", query: { city: selectedName } },
-      { scroll: false }
-    )
-  }, [selectedCityId, initialCityName, cities, router])
+  // 切换城市 = 导航到带新 ?city= 的历史页，服务端按参数重取单城数据
+  const handleCityChange = (cityId: string) => {
+    const city = cities.find((c) => c.id === cityId)
+    if (city) {
+      router.push(
+        { pathname: "/dashboard/history", query: { city: city.name_en } },
+        { scroll: false }
+      )
+    }
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -83,6 +71,24 @@ export function HistoryView({
     onSuccess: () => {
       toast.success(t("refreshSuccess"))
       // 重拉服务端数据，让今日快照立即反映最新值
+      router.refresh()
+    },
+    onError: (e) => {
+      toast.error(
+        e instanceof WeatherError ? t(`errors.${e.code}`) : t("errors.generic")
+      )
+    },
+  })
+
+  // 一键回填近 7 天（含今天）：独立于常规刷新的历史补采，成功同样重拉服务端数据
+  const backfill = useMutation({
+    mutationFn: async () => {
+      const res = await backfillWeatherAction(7)
+      if (!res.ok) throw new WeatherError(res.error)
+      return res.summary
+    },
+    onSuccess: () => {
+      toast.success(t("backfillSuccess"))
       router.refresh()
     },
     onError: (e) => {
@@ -116,9 +122,6 @@ export function HistoryView({
     return row.condition_label ?? "—"
   }
 
-  // 只按城市过滤：同一日期三个平台的行并列展示，靠平台列区分
-  const filtered = rows.filter((r) => r.city_id === selectedCityId)
-
   return (
     <div className="flex flex-col gap-6">
       {cities.length === 0 ? (
@@ -142,7 +145,7 @@ export function HistoryView({
               </span>
               <Select
                 value={selectedCityId}
-                onValueChange={(v) => v && setSelectedCityId(String(v))}
+                onValueChange={(v) => v && handleCityChange(String(v))}
                 items={cityLabels}
               >
                 <SelectTrigger className="w-44">
@@ -159,7 +162,7 @@ export function HistoryView({
             </div>
 
             {isAdmin && (
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-2">
                 <ButtonBlue
                   size="sm"
                   disabled={mutation.isPending}
@@ -171,12 +174,23 @@ export function HistoryView({
                   />
                   {mutation.isPending ? t("refreshing") : t("refresh")}
                 </ButtonBlue>
+                <ButtonBlue
+                  size="sm"
+                  disabled={backfill.isPending}
+                  onClick={() => backfill.mutate()}
+                >
+                  <History
+                    aria-hidden="true"
+                    className={backfill.isPending ? "animate-spin" : ""}
+                  />
+                  {backfill.isPending ? t("backfilling") : t("backfill")}
+                </ButtonBlue>
               </div>
             )}
           </div>
 
           {/* 图表区：温度趋势折线图 + 降水/天气概览卡，置于表格上方；无数据时随表格一并空置 */}
-          {filtered.length > 0 && <HistoryCharts rows={filtered} />}
+          {rows.length > 0 && <HistoryCharts rows={rows} />}
 
           <DataTable
             headers={[
@@ -187,9 +201,9 @@ export function HistoryView({
               { label: t("columns.precipitation") },
               { label: t("columns.condition") },
             ]}
-            empty={filtered.length === 0 ? t("noData") : null}
+            empty={rows.length === 0 ? t("noData") : null}
           >
-            {filtered.map((row) => (
+            {rows.map((row) => (
               <DataTableRow key={row.id}>
                 <TableCell className="font-medium">
                   {formatDay(row.day)}
@@ -201,7 +215,9 @@ export function HistoryView({
                 </TableCell>
                 <TableCell>{formatWeatherNumber(row.high_temp)}°C</TableCell>
                 <TableCell>{formatWeatherNumber(row.low_temp)}°C</TableCell>
-                <TableCell>{formatWeatherNumber(row.precipitation)} mm</TableCell>
+                <TableCell>
+                  {formatWeatherNumber(row.precipitation)} mm
+                </TableCell>
                 <TableCell>{conditionOf(row)}</TableCell>
               </DataTableRow>
             ))}

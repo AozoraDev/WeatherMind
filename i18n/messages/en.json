@@ -176,6 +176,9 @@
       "refresh": "Refresh",
       "refreshing": "Collecting…",
       "refreshSuccess": "Weather data updated",
+      "backfill": "Sync 7 days",
+      "backfilling": "Syncing…",
+      "backfillSuccess": "Last 7 days synced",
       "empty": "No history yet — click refresh to collect daily snapshots",
       "noData": "No data",
       "sources": {

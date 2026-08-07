@@ -67,7 +67,8 @@ export function aggregateDailyForecast(
 }
 
 // 指定时区「今天」的本地日期键；now 供测试注入（默认取真实当前时刻）
-export function localTodayKey(
+// 仅本模块内部（todayAggregate / recentWindow）使用，不对外暴露
+function localTodayKey(
   timeZone: string,
   now: Date = new Date()
 ): string {
@@ -109,4 +110,17 @@ export function daysAgoLocalDateKey(
     new Date(now.getTime() - days * 86_400_000).toISOString(),
     timeZone
   )
+}
+
+// 近 days 天（含今天）的城市本地日期窗口 [from, to]，含边界。
+// 供历史回填界定范围：adapter 只产出窗口内每日聚合、回填主流程统一按此过滤
+export function recentWindow(
+  timeZone: string,
+  days: number,
+  now: Date = new Date()
+): { from: string; to: string } {
+  return {
+    to: localTodayKey(timeZone, now),
+    from: daysAgoLocalDateKey(timeZone, days - 1, now),
+  }
 }
