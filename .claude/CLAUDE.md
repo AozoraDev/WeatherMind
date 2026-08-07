@@ -10,7 +10,7 @@ WeatherMind：Next.js 16.2.6（App Router）+ React 19.2.4 + Tailwind 4 + shadcn
 - `supabase/`：server.ts（会话）/ service.ts（service_role 写入端）/ proxy.ts（中间件鉴权+刷新）/ auth/ / migrations/
 - `lib/weather/`：providers/（源 adapter）、http.ts（唯一 fetch）、pipeline.ts（城×源采集）、daily.ts（按城市时区归日）、mapping.ts（condition 归一化）、actions.ts（管理员刷新）、city-actions.ts
 - `lib/schemas/` Zod（前后端共用）；`components/`、`hooks/`、`i18n/`；`docs/` 仅供人读，**agent 勿读**
-- `.github/workflows/`：ci.yml、stryker.yml（PR 必跑变异→英文评论，无 lib 变更时回退全量白名单）、weather-cron.yml（每日采集 → `/api/cron/weather`）
+- `.github/workflows/`：ci.yml、stryker.yml（PR 定向变异，结果见日志）、weather-cron.yml（每日采集 → `/api/cron/weather`）
 
 ## 硬性约定
 - 别名 `@/*`；className 用 `cn()`（`@/lib/utils`）

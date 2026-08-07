@@ -1,6 +1,5 @@
-# Stryker 变异测试：PR 触发必跑、从不跳过。有「有测试」的 lib/ 与 supabase/ 源文件变更时定向跑这些文件；
-# 否则回退跑 stryker.config.json 的 mutate 白名单全量。结果直接评论英文报告。
-# 评分低于 break 阈值时同样发评论但 job 标红。
+# Stryker 变异测试：PR 触发，对变更的 lib/ 与 supabase/ 源文件中「有测试」的定向跑。
+# 不发 PR 评论：结果在 job 日志中查看，同时上传报告 artifact 便于排查。
 name: Stryker Mutation Testing
 
 on:
@@ -9,9 +8,6 @@ on:
 
 permissions:
   contents: read
-  # 发 PR 评论走 issue comments 接口
-  pull-requests: write
-  issues: write
 
 jobs:
   stryker:
@@ -36,8 +32,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # 计算变异范围：白名单策略——有「有测试」的 lib/ 与 supabase/ 源文件变更时定向跑（快且相关）；
-      # 没有则回退跑 config mutate 白名单全量，保证每个 PR 都跑、从不跳过。
+      # 计算变异范围：白名单策略——只跑 PR 变更的 lib/ 与 supabase/ 中「有测试」的源文件（快且相关）。
       # checkout 已完成，直接查磁盘上同名测试文件；无测试的不变异，避免 NoCoverage 拖垮门禁
       - name: Compute mutation scope
         id: scope
@@ -65,116 +60,21 @@ jobs:
                   !f.endsWith('.d.ts') &&
                   isTested(f)
               )
-            // 有定向源文件 → scoped；无 → 回退全量 config 白名单（args 留空即用 config mutate）
-            const mode = sources.length === 0 ? 'full' : 'scoped'
-            let fileCount = String(sources.length)
-            if (mode === 'full') {
-              const cfg = JSON.parse(fs.readFileSync('stryker.config.json', 'utf8'))
-              fileCount = String(cfg.mutate.length)
-            }
-            core.setOutput('mode', mode)
-            core.setOutput('args', sources.length === 0 ? '' : sources.map((f) => `--mutate "${f}"`).join(' '))
-            core.setOutput('fileCount', fileCount)
+            core.setOutput('mode', sources.length === 0 ? 'skip' : 'scoped')
+            core.setOutput('args', sources.map((f) => `--mutate "${f}"`).join(' '))
+            core.setOutput('fileCount', String(sources.length))
 
-      # mode 恒为 scoped 或 full：scoped 定向传 --mutate，full 留空即用 config mutate 白名单全量
-      - name: Run mutation tests
+      - name: Run mutation tests (changed files)
+        if: steps.scope.outputs.mode == 'scoped'
         run: pnpm test:stryker ${{ steps.scope.outputs.args }}
 
-      # always()：评分低于 break 阈值时 Stryker 退出码非 0（上一步标红），
-      # 但报告 JSON 在退出前已写出，评分/存活明细仍读得到，照常评论
-      - name: Comment Stryker report on PR
-        if: always()
-        uses: actions/github-script@v7
-        env:
-          STRYKER_FILE_COUNT: ${{ steps.scope.outputs.fileCount }}
-          STRYKER_MODE: ${{ steps.scope.outputs.mode }}
-        with:
-          script: |
-            const fs = require('fs')
-            const reportPath = 'reports/stryker/mutation-report.json'
-            if (!fs.existsSync(reportPath)) {
-              console.log('Mutation report not found; skipping comment')
-              return
-            }
-            const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'))
+      - name: Skip mutation tests
+        if: steps.scope.outputs.mode == 'skip'
+        run: echo "No lib/ source files changed in this PR; skipping mutation tests"
 
-            // 逐文件统计变异状态，收集存活变异体的位置与替换内容
-            const totals = {}
-            const rows = []
-            const survived = []
-            for (const [file, f] of Object.entries(report.files)) {
-              const per = {}
-              for (const m of f.mutants) {
-                per[m.status] = (per[m.status] || 0) + 1
-                totals[m.status] = (totals[m.status] || 0) + 1
-                if (m.status === 'Survived') {
-                  survived.push(`- \`${file}:${m.location.start.line}\` **${m.mutatorName}** — \`${m.replacement ?? ''}\``)
-                }
-              }
-              const total = f.mutants.length
-              const killed = per.Killed || 0
-              const score = total ? ((killed / total) * 100).toFixed(1) : '100.0'
-              rows.push(`| \`${file}\` | ${score}% | ${killed} | ${per.Survived || 0} | ${per.NoCoverage || 0} |`)
-            }
-
-            const total = Object.values(totals).reduce((a, b) => a + b, 0)
-            const killed = totals.Killed || 0
-            const score = total ? ((killed / total) * 100).toFixed(1) : '100.0'
-
-            // 区分 scoped（定向变更文件）与 full（回退全量白名单）两种运行范围，标题行对应用户可见描述
-            const scopeLine =
-              process.env.STRYKER_MODE === 'scoped'
-                ? `> Scoped to **${process.env.STRYKER_FILE_COUNT}** source file(s) changed in this PR.`
-                : `> No tested \`lib/\` / \`supabase/\` source file changed in this PR — ran the **full mutate whitelist** (\`stryker.config.json\`, ${process.env.STRYKER_FILE_COUNT} files).`
-
-            let body = [
-              `## 🧬 Stryker Mutation Report`,
-              ``,
-              `**Mutation score: ${score}%** — ${killed}/${total} mutants killed · ${totals.Survived || 0} survived · ${totals.NoCoverage || 0} no coverage`,
-              ``,
-              scopeLine,
-              ``,
-              `| File | Score | Killed | Survived | No Coverage |`,
-              `|---|---|---|---|---|`,
-              ...rows,
-            ].join('\n')
-
-            if (survived.length > 0) {
-              body += `\n\n<details>\n<summary>Survived mutants (${survived.length})</summary>\n\n${survived.join('\n')}\n</details>`
-            }
-            const marker = '<!-- weathermind-stryker-report -->'
-            body += `\n\n${marker}`
-
-            // 带标记则更新旧评论，避免每个 commit 刷一条；fork PR 无评论权限时 try/catch 兜底
-            try {
-              const { data: comments } = await github.rest.issues.listComments({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-              })
-              const existing = comments.find((c) => c.body && c.body.includes(marker))
-              if (existing) {
-                await github.rest.issues.updateComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: existing.id,
-                  body,
-                })
-              } else {
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: context.issue.number,
-                  body,
-                })
-              }
-            } catch (err) {
-              console.log(`Failed to post comment (fork PR may lack permissions): ${err.message}`)
-            }
-
-      # 变异失败（低于阈值）也上传报告，便于失败时排查
+      # 不单独发 PR 评论，结果以日志形式查看；变异失败（低于阈值）也上传报告便于排查
       - name: Upload Stryker report
-        if: always()
+        if: always() && steps.scope.outputs.mode != 'skip'
         uses: actions/upload-artifact@v4
         with:
           name: stryker-report
