@@ -51,6 +51,10 @@ jobs:
     name: Test & Coverage
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # codecov-action@v5 走 OIDC 鉴权，必须显式授予 id-token 写权限
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
