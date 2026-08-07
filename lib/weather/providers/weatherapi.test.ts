@@ -90,4 +90,144 @@ describe("weatherApi 历史回填 fetchDailyHistory", () => {
     expect(result).toEqual({ ok: false, error: "missingKey" })
     expect(vi.mocked(fetch)).not.toHaveBeenCalled()
   })
+
+  it("单天请求非 2xx 返回 http", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({}, false))
+    const result = await weatherApi.fetchDailyHistory(city, 7)
+    expect(result).toEqual({ ok: false, error: "http" })
+  })
+
+  it("history 响应解析失败返回 parse", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ forecast: {} }))
+    const result = await weatherApi.fetchDailyHistory(city, 7)
+    expect(result).toEqual({ ok: false, error: "parse" })
+  })
+
+  it("history 缺 forecastday 返回 noData", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ forecast: { forecastday: [] } })
+    )
+    const result = await weatherApi.fetchDailyHistory(city, 7)
+    expect(result).toEqual({ ok: false, error: "noData" })
+  })
+})
+
+describe("weatherApi 实时+预报 fetchCurrentAndForecast", () => {
+  const currentPayload = {
+    current: {
+      last_updated_epoch: 1754442000,
+      temp_c: 27.5,
+      feelslike_c: 28.5,
+      humidity: 65,
+      pressure_mb: 1012,
+      wind_kph: 14,
+      wind_degree: 190,
+      precip_mm: 0.5,
+      condition: { text: "Partly cloudy", code: 1003 },
+    },
+  }
+  const forecastPayload = {
+    forecast: {
+      forecastday: [
+        {
+          hour: [
+            {
+              time_epoch: 1754445600,
+              temp_c: 28.0,
+              wind_kph: 18,
+              precip_mm: 0,
+              condition: { text: "Moderate rain", code: 1183 },
+            },
+          ],
+        },
+      ],
+    },
+  }
+
+  // 按 URL 分发伪响应：/current.json 走实时，其余走预报
+  function stubFetchByUrl(
+    current: unknown = currentPayload,
+    forecast: unknown = forecastPayload
+  ) {
+    return vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input)
+      return url.includes("/current.json")
+        ? jsonResponse(current)
+        : jsonResponse(forecast)
+    })
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn())
+    vi.stubEnv("WEATHERAPI_API_KEY", "test-key")
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-08-07T04:00:00Z"))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+    vi.useRealTimers()
+  })
+
+  it("成功：两个端点并行请求并归一化", async () => {
+    const fetchMock = stubFetchByUrl()
+    const result = await weatherApi.fetchCurrentAndForecast(city)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { current, forecast, source } = result.data
+    expect(source).toBe("weatherapi")
+    expect(current.temperature).toBe(27.5)
+    expect(current.windSpeed).toBe(3.89) // 14 km/h → m/s
+    expect(current.conditionCode).toBe(1003)
+    expect(current.conditionCategory).toBe("partlyCloudy")
+    expect(current.observedAt).toBe(new Date(1754442000 * 1000).toISOString())
+    expect(forecast).toHaveLength(1)
+    expect(forecast[0].conditionCategory).toBe("rain")
+    expect(forecast[0].forecastTime).toBe(
+      new Date(1754445600 * 1000).toISOString()
+    )
+    expect(fetchMock.mock.calls).toHaveLength(2)
+  })
+
+  it("缺 API key 返回 missingKey，不发请求", async () => {
+    vi.stubEnv("WEATHERAPI_API_KEY", "")
+    const result = await weatherApi.fetchCurrentAndForecast(city)
+    expect(result).toEqual({ ok: false, error: "missingKey" })
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+
+  it("current 请求非 2xx 返回 http", async () => {
+    vi.mocked(fetch).mockImplementation(async (input) =>
+      String(input).includes("/current.json")
+        ? jsonResponse({}, false)
+        : jsonResponse(forecastPayload)
+    )
+    const result = await weatherApi.fetchCurrentAndForecast(city)
+    expect(result).toEqual({ ok: false, error: "http" })
+  })
+
+  it("forecast 请求非 2xx 返回 http", async () => {
+    vi.mocked(fetch).mockImplementation(async (input) =>
+      String(input).includes("/current.json")
+        ? jsonResponse(currentPayload)
+        : jsonResponse({}, false)
+    )
+    const result = await weatherApi.fetchCurrentAndForecast(city)
+    expect(result).toEqual({ ok: false, error: "http" })
+  })
+
+  it("current 解析失败返回 parse", async () => {
+    stubFetchByUrl({ current: { temp_c: "27" } }, forecastPayload)
+    const result = await weatherApi.fetchCurrentAndForecast(city)
+    expect(result).toEqual({ ok: false, error: "parse" })
+  })
+
+  it("forecast 解析失败返回 parse", async () => {
+    stubFetchByUrl(currentPayload, { forecast: { forecastday: [{}] } })
+    const result = await weatherApi.fetchCurrentAndForecast(city)
+    expect(result).toEqual({ ok: false, error: "parse" })
+  })
 })

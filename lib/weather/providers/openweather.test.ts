@@ -183,4 +183,18 @@ describe("openWeather 历史回填 fetchDailyHistory", () => {
     expect(result).toEqual({ ok: false, error: "missingKey" })
     expect(vi.mocked(fetch)).not.toHaveBeenCalled()
   })
+
+  it("单天请求非 2xx 返回 http", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({}, false))
+    const result = await openWeather.fetchDailyHistory(city, 7)
+    expect(result).toEqual({ ok: false, error: "http" })
+  })
+
+  it("day_summary 解析失败返回 parse", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ date: "2026-08-01", temperature: { min: "22" } })
+    )
+    const result = await openWeather.fetchDailyHistory(city, 7)
+    expect(result).toEqual({ ok: false, error: "parse" })
+  })
 })

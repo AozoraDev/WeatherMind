@@ -83,3 +83,118 @@ describe("openMeteo 历史回填 fetchDailyHistory", () => {
     expect(result).toEqual({ ok: false, error: "noData" })
   })
 })
+
+describe("openMeteo 实时+预报 fetchCurrentAndForecast", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn())
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-08-07T04:00:00Z"))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  // current 缺计算值字段时省略，此处给足；naive 时间为 JST（offset 32400）
+  const currentPayload = {
+    utc_offset_seconds: 32400,
+    current: {
+      time: "2026-08-07T12:00",
+      temperature_2m: 28,
+      relative_humidity_2m: 60,
+      apparent_temperature: 29.5,
+      precipitation: 0.2,
+      weather_code: 1,
+      pressure_msl: 1013,
+      wind_speed_10m: 4,
+      wind_direction_10m: 200,
+    },
+    hourly: {
+      time: ["2026-08-07T13:00"],
+      temperature_2m: [28],
+      wind_speed_10m: [4],
+      weather_code: [1],
+      precipitation: [0],
+    },
+  }
+
+  it("成功：current 与 hourly 归一化，naive 时间换算成 UTC", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(currentPayload))
+    const result = await openMeteo.fetchCurrentAndForecast(city)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { current, forecast, source } = result.data
+    expect(source).toBe("open-meteo")
+    expect(current.temperature).toBe(28)
+    expect(current.windSpeed).toBe(4)
+    expect(current.precipitation).toBe(0.2)
+    expect(current.conditionCode).toBe(1)
+    expect(current.conditionCategory).toBe("partlyCloudy")
+    // JST 12:00 → UTC 03:00（减 9h 偏移）
+    expect(current.observedAt).toBe("2026-08-07T03:00:00.000Z")
+    expect(forecast).toHaveLength(1)
+    expect(forecast[0].forecastTime).toBe("2026-08-07T04:00:00.000Z")
+  })
+
+  it("响应缺 current 返回 noData", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ utc_offset_seconds: 32400 })
+    )
+    const result = await openMeteo.fetchCurrentAndForecast(city)
+    expect(result).toEqual({ ok: false, error: "noData" })
+  })
+
+  it("current 缺必需字段（温度）返回 noData", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        utc_offset_seconds: 32400,
+        current: { time: "2026-08-07T12:00" },
+      })
+    )
+    const result = await openMeteo.fetchCurrentAndForecast(city)
+    expect(result).toEqual({ ok: false, error: "noData" })
+  })
+
+  it("字段类型漂移（温度变字符串）返回 parse", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        utc_offset_seconds: 32400,
+        current: {
+          time: "2026-08-07T12:00",
+          temperature_2m: "28",
+          wind_speed_10m: 4,
+          weather_code: 1,
+        },
+      })
+    )
+    const result = await openMeteo.fetchCurrentAndForecast(city)
+    expect(result).toEqual({ ok: false, error: "parse" })
+  })
+
+  it("非 2xx 返回 http", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({}, false))
+    const result = await openMeteo.fetchCurrentAndForecast(city)
+    expect(result).toEqual({ ok: false, error: "http" })
+  })
+
+  it("网络异常返回 network", async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error("offline"))
+    const result = await openMeteo.fetchCurrentAndForecast(city)
+    expect(result).toEqual({ ok: false, error: "network" })
+  })
+
+  it("缺 hourly 时 forecast 为空但整体成功", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        utc_offset_seconds: 32400,
+        current: currentPayload.current,
+      })
+    )
+    const result = await openMeteo.fetchCurrentAndForecast(city)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.forecast).toEqual([])
+  })
+})
