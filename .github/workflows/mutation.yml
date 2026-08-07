@@ -1,4 +1,5 @@
-# 变异测试：PR 上对变更的 lib/ 文件定向跑 Stryker 并评论结果；
+# 变异测试：PR 上对变更的 lib/ 文件定向跑 Stryker 并评论结果（评分低于 break 阈值时
+# 同样会评论，CI 仍标红）；
 # main 推送 / 每晚定时 / 手动触发时全量跑，产出 html 报告供下载
 name: Mutation Testing
 
@@ -16,6 +17,7 @@ permissions:
   contents: read
   # 需要给 PR 发评论（github-script 用 issue comments 接口）
   pull-requests: write
+  issues: write
 
 jobs:
   mutation:
@@ -52,10 +54,12 @@ jobs:
               core.setOutput('mode', 'full')
               return
             }
-            const { data: files } = await github.rest.pulls.listFiles({
+            // 逐页拉取全部变更文件：listFiles 默认每页 30，大 PR 会漏掉后面的 lib/ 文件
+            const files = await github.paginate(github.rest.pulls.listFiles, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: prNumber,
+              per_page: 100,
             })
             const sources = files
               .map(f => f.filename)
@@ -79,8 +83,10 @@ jobs:
         if: steps.scope.outputs.mode == 'skip'
         run: echo "PR 未改动 lib/ 源文件，跳过变异测试"
 
+      # 用 always() 保证变异低于 break 阈值（Stryker 退出码非 0、上一步失败）时
+      # 也能发评论：Stryker 会在退出前先写出 JSON 报告，评分/存活明细都还读得到
       - name: Comment mutation result on PR
-        if: github.event_name == 'pull_request' && steps.scope.outputs.mode != 'skip'
+        if: always() && github.event_name == 'pull_request' && steps.scope.outputs.mode != 'skip'
         uses: actions/github-script@v7
         with:
           script: |
@@ -187,8 +193,9 @@ jobs:
               console.log(`评论失败（可能是 fork PR 无权限）：${err.message}`)
             }
 
+      # 变异失败（低于阈值）也上传报告，方便在失败时排查
       - name: Upload mutation report
-        if: steps.scope.outputs.mode != 'skip'
+        if: always() && steps.scope.outputs.mode != 'skip'
         uses: actions/upload-artifact@v4
         with:
           name: mutation-report
