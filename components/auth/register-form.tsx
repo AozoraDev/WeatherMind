@@ -38,8 +38,15 @@ export function RegisterForm() {
   }
 
   const sendCode = useMutation({
-    mutationFn: async (values: RegisterFormValues) => {
-      const res = await registerSendCodeAction(values)
+    mutationFn: async ({
+      values,
+      checkExists,
+    }: {
+      values: RegisterFormValues
+      checkExists: boolean
+    }) => {
+      // 首次发送才做已注册预检；重发时账号刚创建、跳过
+      const res = await registerSendCodeAction(values, { checkExists })
       if (!res.ok) throw new AuthError(res.error)
     },
     onSuccess: () => {
@@ -66,7 +73,8 @@ export function RegisterForm() {
     // 单个 schema 覆盖两段式：step1 code 为空通过，step2 校验 6 位验证码
     validators: { onSubmit: registerSchema },
     onSubmit: async ({ value }) => {
-      if (step === "send") await sendCode.mutateAsync(value)
+      if (step === "send")
+        await sendCode.mutateAsync({ values: value, checkExists: true })
       else await verify.mutateAsync(value)
     },
   })
@@ -169,7 +177,12 @@ export function RegisterForm() {
 
           <button
             type="button"
-            onClick={() => sendCode.mutate(form.state.values)}
+            onClick={() =>
+              sendCode.mutate({
+                values: form.state.values,
+                checkExists: false,
+              })
+            }
             disabled={sendCode.isPending}
             className="self-start text-xs text-[#2563eb] hover:underline disabled:opacity-50"
           >
