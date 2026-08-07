@@ -6,11 +6,11 @@ WeatherMind：Next.js 16.2.6（App Router）+ React 19.2.4 + Tailwind 4 + shadcn
 `dev`/`build`/`start`；`lint`/`format`/`typecheck`；`test`（Vitest，见 skill `vitest`）；`test:stryker`（Stryker，见 skill `vitest`）
 
 ## 目录
-- `app/[locale]/` 页面与布局；`app/api/` Route Handler（cron 等，不走 proxy 中间件）
+- `app/[locale]/` 页面与布局（无 `/api` 路由；外部定时采集直跑 `scripts/weather-cron.ts`）
 - `supabase/`：server.ts（会话）/ service.ts（service_role 写入端）/ proxy.ts（中间件鉴权+刷新）/ auth/ / migrations/
 - `lib/weather/`：providers/（源 adapter）、http.ts（唯一 fetch）、pipeline.ts（城×源采集）、daily.ts（按城市时区归日）、mapping.ts（condition 归一化）、actions.ts（管理员刷新）、city-actions.ts
 - `lib/schemas/` Zod（前后端共用）；`components/`、`hooks/`、`i18n/`；`docs/` 仅供人读，**agent 勿读**
-- `.github/workflows/`：ci.yml、stryker.yml（PR 定向变异，结果见日志）、weather-cron.yml（每日采集 → `/api/cron/weather`）
+- `.github/workflows/`：ci.yml、stryker.yml（PR 定向变异，结果见日志）、weather-cron.yml（每日采集：Actions 直跑 `scripts/weather-cron.ts` 写库）
 
 ## 硬性约定
 - 别名 `@/*`；className 用 `cn()`（`@/lib/utils`）
@@ -19,7 +19,7 @@ WeatherMind：Next.js 16.2.6（App Router）+ React 19.2.4 + Tailwind 4 + shadcn
 - 逻辑代码配简体中文注释（`rules/comment-style.md`）
 - 天气网络请求只走 `lib/weather/http.ts`；新数据源按 `providers/` adapter 契约实现并注册
 - Supabase：会话走 server.ts `createClient`；受信写入走 service.ts `createServiceClient`（service_role，**勿在客户端 import**）
-- `/api` 不走 proxy 中间件，需自鉴权（cron 校验 `x-weather-cron-secret` 头）
+- `/api` 不走 proxy 中间件，需自鉴权（当前无 `/api` 路由；如新增 Route Handler 需自带鉴权）
 
 ## 规则（`rules/` 常驻，按场景应用）
 | 规则 | 适用 |

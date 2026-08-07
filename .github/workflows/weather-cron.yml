@@ -1,6 +1,6 @@
-# 每日天气定时采集：GitHub Actions cron 按 UTC 计算
+# 每日天气定时采集：GitHub Actions 直接执行采集管道并写入 Supabase，
+# 不再依赖部署环境与 /api/cron/weather 路由。
 # 城市全为 Asia/Tokyo，「每日 0 点」取 JST 午夜 = 15:00 UTC（'0 15 * * *'）。
-# 若意图是 UTC 午夜，把表达式改为 '0 0 * * *'。
 name: Weather Cron
 
 on:
@@ -17,16 +17,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      # 从 GitHub Secrets 注入，值须与部署环境（如 Vercel）的 WEATHER_CRON_SECRET 一致
-      WEATHER_CRON_SECRET: ${{ secrets.WEATHER_CRON_SECRET }}
-      # 部署根地址（不含末尾斜杠），从 GitHub Variables 读取；示例：https://weathermind.vercel.app
-      DEPLOY_URL: ${{ vars.WEATHER_DEPLOY_URL }}
+      # 从 GitHub Secrets 注入，变量名与 .env.example 保持一致；
+      # SUPABASE_SERVICE_ROLE_KEY 为服务端密钥，仅存于 repo secrets，勿暴露到客户端
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+      WEATHERAPI_API_KEY: ${{ secrets.WEATHERAPI_API_KEY }}
     steps:
-      - name: 触发采集路由并校验响应
-        run: |
-          # 规范化根地址：剥掉尾斜杠，防止拼出 //api/... 被 Vercel 308 重定向、curl 无 -L 静默退出 0 导致「绿但没执行」
-          BASE="${DEPLOY_URL%/}"
-          # 路由校验 header 名固定为 x-weather-cron-secret；非 2xx 时 curl 带响应体退出非零，工作流标红便于排查
-          curl -sS --fail-with-body \
-            -H "x-weather-cron-secret: ${WEATHER_CRON_SECRET}" \
-            "${BASE}/api/cron/weather"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 直跑采集管道：写库后按运行终态退出，全失败（succeeded=0）退出非零标红；
+      # 部分成功仍算已执行（绿但日志可见各格错误），比旧 route 恒 200 失败可见性更好
+      - name: Run weather pipeline
+        run: pnpm tsx scripts/weather-cron.ts
