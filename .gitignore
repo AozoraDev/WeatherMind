@@ -11,7 +11,7 @@
 # testing
 /coverage
 /.stryker-tmp
-/reports/mutation
+/reports/stryker
 
 # next.js
 /.next/

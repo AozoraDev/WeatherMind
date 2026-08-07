@@ -12,10 +12,10 @@
   "timeoutMS": 10000,
   "reporters": ["clear-text", "progress", "html", "json"],
   "htmlReporter": {
-    "fileName": "reports/mutation/html/index.html"
+    "fileName": "reports/stryker/html/index.html"
   },
   "jsonReporter": {
-    "fileName": "reports/mutation/mutation-report.json"
+    "fileName": "reports/stryker/mutation-report.json"
   },
   "thresholds": {
     "high": 80,

@@ -12,7 +12,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:mutation": "stryker run"
+    "test:stryker": "stryker run"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

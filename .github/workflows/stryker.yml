@@ -1,0 +1,159 @@
+# Stryker 变异测试：PR 触发，对变更的 lib/ 源文件定向跑并直接评论结果（英文报告）。
+# 评分低于 break 阈值时同样发评论但 job 标红。
+name: Stryker Mutation Testing
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  # 发 PR 评论走 issue comments 接口
+  pull-requests: write
+  issues: write
+
+jobs:
+  stryker:
+    name: Stryker Mutation Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 计算变异范围：只跑 PR 变更的 lib/ 源文件（快且相关）；
+      # PR 未改动 lib/ 源文件则跳过
+      - name: Compute mutation scope
+        id: scope
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 分页拉全变更文件：listFiles 默认每页 30，大 PR 会漏掉后面的 lib/ 文件
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              per_page: 100,
+            })
+            const sources = files
+              .map((f) => f.filename)
+              .filter((f) => f.startsWith('lib/') && f.endsWith('.ts') && !f.includes('.test.') && !f.endsWith('.d.ts'))
+            core.setOutput('mode', sources.length === 0 ? 'skip' : 'scoped')
+            core.setOutput('args', sources.map((f) => `--mutate "${f}"`).join(' '))
+            core.setOutput('fileCount', String(sources.length))
+
+      - name: Run mutation tests (changed files)
+        if: steps.scope.outputs.mode == 'scoped'
+        run: pnpm test:stryker ${{ steps.scope.outputs.args }}
+
+      - name: Skip mutation tests
+        if: steps.scope.outputs.mode == 'skip'
+        run: echo "No lib/ source files changed in this PR; skipping mutation tests"
+
+      # always()：评分低于 break 阈值时 Stryker 退出码非 0（上一步标红），
+      # 但报告 JSON 在退出前已写出，评分/存活明细仍读得到，照常评论
+      - name: Comment Stryker report on PR
+        if: always() && steps.scope.outputs.mode != 'skip'
+        uses: actions/github-script@v7
+        env:
+          STRYKER_FILE_COUNT: ${{ steps.scope.outputs.fileCount }}
+        with:
+          script: |
+            const fs = require('fs')
+            const reportPath = 'reports/stryker/mutation-report.json'
+            if (!fs.existsSync(reportPath)) {
+              console.log('Mutation report not found; skipping comment')
+              return
+            }
+            const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'))
+
+            // 逐文件统计变异状态，收集存活变异体的位置与替换内容
+            const totals = {}
+            const rows = []
+            const survived = []
+            for (const [file, f] of Object.entries(report.files)) {
+              const per = {}
+              for (const m of f.mutants) {
+                per[m.status] = (per[m.status] || 0) + 1
+                totals[m.status] = (totals[m.status] || 0) + 1
+                if (m.status === 'Survived') {
+                  survived.push(`- \`${file}:${m.location.start.line}\` **${m.mutatorName}** — \`${m.replacement ?? ''}\``)
+                }
+              }
+              const total = f.mutants.length
+              const killed = per.Killed || 0
+              const score = total ? ((killed / total) * 100).toFixed(1) : '100.0'
+              rows.push(`| \`${file}\` | ${score}% | ${killed} | ${per.Survived || 0} | ${per.NoCoverage || 0} |`)
+            }
+
+            const total = Object.values(totals).reduce((a, b) => a + b, 0)
+            const killed = totals.Killed || 0
+            const score = total ? ((killed / total) * 100).toFixed(1) : '100.0'
+
+            let body = [
+              `## 🧬 Stryker Mutation Report`,
+              ``,
+              `**Mutation score: ${score}%** — ${killed}/${total} mutants killed · ${totals.Survived || 0} survived · ${totals.NoCoverage || 0} no coverage`,
+              ``,
+              `> Scoped to **${process.env.STRYKER_FILE_COUNT}** lib/ source file(s) changed in this PR.`,
+              ``,
+              `| File | Score | Killed | Survived | No Coverage |`,
+              `|---|---|---|---|---|`,
+              ...rows,
+            ].join('\n')
+
+            if (survived.length > 0) {
+              body += `\n\n<details>\n<summary>Survived mutants (${survived.length})</summary>\n\n${survived.join('\n')}\n</details>`
+            }
+            const marker = '<!-- weathermind-stryker-report -->'
+            body += `\n\n${marker}`
+
+            // 带标记则更新旧评论，避免每个 commit 刷一条；fork PR 无评论权限时 try/catch 兜底
+            try {
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+              })
+              const existing = comments.find((c) => c.body && c.body.includes(marker))
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body,
+                })
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body,
+                })
+              }
+            } catch (err) {
+              console.log(`Failed to post comment (fork PR may lack permissions): ${err.message}`)
+            }
+
+      # 变异失败（低于阈值）也上传报告，便于失败时排查
+      - name: Upload Stryker report
+        if: always() && steps.scope.outputs.mode != 'skip'
+        uses: actions/upload-artifact@v4
+        with:
+          name: stryker-report
+          path: reports/stryker
+          retention-days: 7

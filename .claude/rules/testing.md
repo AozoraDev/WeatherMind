@@ -17,7 +17,7 @@ CI 采集上报，是**回归门禁**而非目标：`pnpm test:coverage`，confi
 
 ## 变异测试（Stryker）
 
-验证测试**有效性**：`pnpm test:mutation`，config 见 `stryker.config.json`，用法见 skill `vitest`。
+验证测试**有效性**：`pnpm test:stryker`，config 见 `stryker.config.json`，用法见 skill `vitest`。
 
-- 只变异 `lib/**/*.ts`；PR 定向变异变更文件并评论，main 推送/每晚/手动全量（mutation.yml）
+- 只变异 `lib/**/*.ts`；PR 触发，定向变异变更文件并评论英文报告（stryker.yml）
 - **break 阈值 80%**：低于则 CI 失败。Survived＝该行为没断言兜住，补断言或拆用例，**别删断言降标准**

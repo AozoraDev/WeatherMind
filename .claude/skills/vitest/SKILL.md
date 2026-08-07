@@ -10,7 +10,7 @@ description: 写测试前必调——Vitest 单测/组件/集成。范围见 rul
 ## 环境
 - 安装：`pnpm add -D vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event`
 - `vitest.config.ts`：`environment:'jsdom'`、`setupFiles` 引 jest-dom、`alias '@'→'./'`
-- 命令 `pnpm test`（run）/ `test:coverage` / `test:mutation`（stryker）；测试文件与源码同目录，`*.test.ts(x)`
+- 命令 `pnpm test`（run）/ `test:coverage` / `test:stryker`（stryker）；测试文件与源码同目录，`*.test.ts(x)`
 
 ## 三类测试
 - 单测：纯函数/lib。`describe`+`it`+`expect`，不渲染
@@ -34,9 +34,8 @@ description: 写测试前必调——Vitest 单测/组件/集成。范围见 rul
 
 ## 变异（Stryker）
 验证测试有效性，不堆覆盖率。
-- 安装：`pnpm add -D @stryker-mutator/core @stryker-mutator/vitest-runner`；config 见 `stryker.config.json`
-- 只变异 `lib/**/*.ts`；`coverageAnalysis:perTest`，`timeoutMS:10000`
+- `pnpm test:stryker`；config 见 `stryker.config.json`（只变异 `lib/**/*.ts`）
+- 定向：`pnpm test:stryker --mutate "lib/weather/pipeline.ts"`
 - **break 阈值 80%**：低于即失败
-- 定向：`pnpm test:mutation --mutate "lib/weather/pipeline.ts"`（改 lib 后提交前跑）
-- CI：PR 定向变异变更 lib 文件并评论；main 推送/每晚 03:23 UTC/手动全量（mutation.yml）
+- CI：PR 触发，定向变异变更的 lib 文件并评论英文报告（stryker.yml）
 - Survived＝没断言兜住，补断言或拆用例，**别删断言降标准**

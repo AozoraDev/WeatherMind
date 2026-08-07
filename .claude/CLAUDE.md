@@ -3,14 +3,14 @@
 WeatherMind：Next.js 16.2.6（App Router）+ React 19.2.4 + Tailwind 4 + shadcn/ui（@base-ui/react）+ pnpm + TS strict。仅浅色模式。Supabase（认证+PG）、next-intl（zh 无前缀 / en 带 /en）、TanStack Query/Form、Zod、Vitest。
 
 ## 命令
-`dev`/`build`/`start`；`lint`/`format`/`typecheck`；`test`（Vitest，见 skill `vitest`）；`test:mutation`（Stryker，见 skill `vitest`）
+`dev`/`build`/`start`；`lint`/`format`/`typecheck`；`test`（Vitest，见 skill `vitest`）；`test:stryker`（Stryker，见 skill `vitest`）
 
 ## 目录
 - `app/[locale]/` 页面与布局；`app/api/` Route Handler（cron 等，不走 proxy 中间件）
 - `supabase/`：server.ts（会话）/ service.ts（service_role 写入端）/ proxy.ts（中间件鉴权+刷新）/ auth/ / migrations/
 - `lib/weather/`：providers/（源 adapter）、http.ts（唯一 fetch）、pipeline.ts（城×源采集）、daily.ts（按城市时区归日）、mapping.ts（condition 归一化）、actions.ts（管理员刷新）、city-actions.ts
 - `lib/schemas/` Zod（前后端共用）；`components/`、`hooks/`、`i18n/`；`docs/` 仅供人读，**agent 勿读**
-- `.github/workflows/`：ci.yml、mutation.yml（PR 定向/定时全量 Stryker）、weather-cron.yml（每日采集 → `/api/cron/weather`）
+- `.github/workflows/`：ci.yml、stryker.yml（PR 定向变异→英文评论）、weather-cron.yml（每日采集 → `/api/cron/weather`）
 
 ## 硬性约定
 - 别名 `@/*`；className 用 `cn()`（`@/lib/utils`）
