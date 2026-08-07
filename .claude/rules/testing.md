@@ -20,6 +20,6 @@ CI 采集上报，是**回归门禁**而非目标：`pnpm test:coverage`，confi
 验证测试**有效性**：`pnpm test:stryker`，config 见 `stryker.config.json`，用法见 skill `vitest`。
 
 - **白名单策略**：只变异「有测试」的源文件（见 `stryker.config.json` mutate，含 `supabase/auth/errors.ts`），无测试的不变异（避免 NoCoverage 拖垮门禁）
-- PR 触发，定向变异变更文件中「有测试」的（磁盘上存在同名 `.test.ts` 才纳入），评论英文报告（stryker.yml）
+- PR 触发**必跑、从不跳过**：有「有测试」的 lib/ 或 supabase/ 源文件变更时定向变异这些文件；没有则回退跑 `stryker.config.json` mutate 白名单全量。评论英文报告（stryker.yml）
 - 新增源文件测试后，把源文件加进 `stryker.config.json` 的 mutate 白名单，否则本地全量跑不变异它
 - **break 阈值 80%**：低于则 CI 失败。Survived＝该行为没断言兜住，补断言或拆用例，**别删断言降标准**
