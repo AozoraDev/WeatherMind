@@ -125,3 +125,62 @@ describe("openWeather 适配器", () => {
     for (const [, init] of calls) expect(init?.cache).toBe("no-store")
   })
 })
+
+describe("openWeather 历史回填 fetchDailyHistory", () => {
+  // 单日 day_summary 响应：min/max 温、降水累计；不含天气状况
+  const daySummaryPayload = {
+    date: "2026-08-01",
+    temperature: { min: 22.0, max: 29.5 },
+    precipitation: { total: 5.1 },
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn())
+    vi.stubEnv("OPENWEATHER_API_KEY", "test-key")
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-08-07T04:00:00Z"))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+    vi.useRealTimers()
+  })
+
+  it("逐天请求 day_summary，映射高低温/降水，条件列置 null", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(daySummaryPayload))
+    const result = await openWeather.fetchDailyHistory(city, 7)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    // 7 天各一次请求，URL 指向 One Call 3.0 day_summary 且带 date=<本地日期>
+    const calls = vi.mocked(fetch).mock.calls
+    expect(calls).toHaveLength(7)
+    const urls = calls.map(([input]) => String(input))
+    for (const url of urls) {
+      expect(url).toContain("/onecall/day_summary")
+      expect(url).toMatch(/date=\d{4}-\d{2}-\d{2}/)
+    }
+    expect(urls[0]).toContain("date=2026-08-01")
+    expect(urls[6]).toContain("date=2026-08-07")
+
+    expect(result.daily).toHaveLength(7)
+    expect(result.daily[0]).toEqual({
+      day: "2026-08-01",
+      highTemp: 29.5,
+      lowTemp: 22.0,
+      precipitation: 5.1,
+      conditionCode: null,
+      conditionLabel: null,
+      conditionCategory: null,
+    })
+  })
+
+  it("缺 API key 返回 missingKey，不发请求", async () => {
+    vi.stubEnv("OPENWEATHER_API_KEY", "")
+    const result = await openWeather.fetchDailyHistory(city, 7)
+    expect(result).toEqual({ ok: false, error: "missingKey" })
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+})

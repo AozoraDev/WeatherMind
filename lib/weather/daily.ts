@@ -110,3 +110,16 @@ export function daysAgoLocalDateKey(
     timeZone
   )
 }
+
+// 近 days 天（含今天）的城市本地日期窗口 [from, to]，含边界。
+// 供历史回填界定范围：adapter 只产出窗口内每日聚合、回填主流程统一按此过滤
+export function recentWindow(
+  timeZone: string,
+  days: number,
+  now: Date = new Date()
+): { from: string; to: string } {
+  return {
+    to: localTodayKey(timeZone, now),
+    from: daysAgoLocalDateKey(timeZone, days - 1, now),
+  }
+}

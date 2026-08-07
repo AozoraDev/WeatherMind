@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { RefreshCw } from "lucide-react"
+import { History, RefreshCw } from "lucide-react"
 import { useLocale, useTranslations } from "next-intl"
 import { useMutation } from "@tanstack/react-query"
 
@@ -20,7 +20,10 @@ import {
 } from "@/components/ui/select"
 import { useRouter } from "@/i18n/navigation"
 import { cn, formatWeatherNumber } from "@/lib/utils"
-import { refreshWeatherAction } from "@/lib/weather/actions"
+import {
+  backfillWeatherAction,
+  refreshWeatherAction,
+} from "@/lib/weather/actions"
 import { WeatherError } from "@/lib/weather/errors"
 import {
   conditionCategorySchema,
@@ -83,6 +86,24 @@ export function HistoryView({
     onSuccess: () => {
       toast.success(t("refreshSuccess"))
       // 重拉服务端数据，让今日快照立即反映最新值
+      router.refresh()
+    },
+    onError: (e) => {
+      toast.error(
+        e instanceof WeatherError ? t(`errors.${e.code}`) : t("errors.generic")
+      )
+    },
+  })
+
+  // 一键回填近 7 天（含今天）：独立于常规刷新的历史补采，成功同样重拉服务端数据
+  const backfill = useMutation({
+    mutationFn: async () => {
+      const res = await backfillWeatherAction(7)
+      if (!res.ok) throw new WeatherError(res.error)
+      return res.summary
+    },
+    onSuccess: () => {
+      toast.success(t("backfillSuccess"))
       router.refresh()
     },
     onError: (e) => {
@@ -159,7 +180,7 @@ export function HistoryView({
             </div>
 
             {isAdmin && (
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-2">
                 <ButtonBlue
                   size="sm"
                   disabled={mutation.isPending}
@@ -170,6 +191,17 @@ export function HistoryView({
                     className={mutation.isPending ? "animate-spin" : ""}
                   />
                   {mutation.isPending ? t("refreshing") : t("refresh")}
+                </ButtonBlue>
+                <ButtonBlue
+                  size="sm"
+                  disabled={backfill.isPending}
+                  onClick={() => backfill.mutate()}
+                >
+                  <History
+                    aria-hidden="true"
+                    className={backfill.isPending ? "animate-spin" : ""}
+                  />
+                  {backfill.isPending ? t("backfilling") : t("backfill")}
                 </ButtonBlue>
               </div>
             )}
@@ -201,7 +233,9 @@ export function HistoryView({
                 </TableCell>
                 <TableCell>{formatWeatherNumber(row.high_temp)}°C</TableCell>
                 <TableCell>{formatWeatherNumber(row.low_temp)}°C</TableCell>
-                <TableCell>{formatWeatherNumber(row.precipitation)} mm</TableCell>
+                <TableCell>
+                  {formatWeatherNumber(row.precipitation)} mm
+                </TableCell>
                 <TableCell>{conditionOf(row)}</TableCell>
               </DataTableRow>
             ))}

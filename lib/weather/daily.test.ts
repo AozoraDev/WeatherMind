@@ -4,6 +4,7 @@ import type { ForecastItem, WeatherPoint } from "@/lib/schemas/weather"
 import {
   aggregateDailyForecast,
   daysAgoLocalDateKey,
+  recentWindow,
   toLocalDateKey,
   todayAggregate,
 } from "./daily"
@@ -142,14 +143,19 @@ describe("todayAggregate（当日快照聚合，预报缺当天 slot 时兜底�
   }
 
   it("预报含当天 slot：用预报聚合，不动用兜底", () => {
-    const agg = todayAggregate("Asia/Tokyo", fetchedAt, [
-      mk("2026-08-06T02:00:00Z", 25),
-      mk("2026-08-06T06:00:00Z", 32, {
-        conditionCode: 800,
-        conditionLabel: "Clear",
-        conditionCategory: "clear",
-      }),
-    ], current)
+    const agg = todayAggregate(
+      "Asia/Tokyo",
+      fetchedAt,
+      [
+        mk("2026-08-06T02:00:00Z", 25),
+        mk("2026-08-06T06:00:00Z", 32, {
+          conditionCode: 800,
+          conditionLabel: "Clear",
+          conditionCategory: "clear",
+        }),
+      ],
+      current
+    )
     expect(agg).toEqual({
       day: "2026-08-06",
       highTemp: 32,
@@ -163,9 +169,12 @@ describe("todayAggregate（当日快照聚合，预报缺当天 slot 时兜底�
 
   it("预报缺当天 slot（OWM 午夜边界）：回退实时数据，high=low=当前温度", () => {
     // 15:00 UTC = JST 次日 00:00，预报只覆盖次日，当天无 slot
-    const agg = todayAggregate("Asia/Tokyo", fetchedAt, [
-      mk("2026-08-06T15:00:00Z", 28),
-    ], current)
+    const agg = todayAggregate(
+      "Asia/Tokyo",
+      fetchedAt,
+      [mk("2026-08-06T15:00:00Z", 28)],
+      current
+    )
     expect(agg).toEqual({
       day: "2026-08-06",
       highTemp: current.temperature,
@@ -190,5 +199,18 @@ describe("daysAgoLocalDateKey（往前 N 天，跨月边界）", () => {
     expect(
       daysAgoLocalDateKey("Asia/Tokyo", 6, new Date("2026-08-02T00:00:00Z"))
     ).toBe("2026-07-27")
+  })
+})
+
+describe("recentWindow（近 days 天含今天的日期窗口）", () => {
+  it("7 天窗口：from 为 6 天前、to 为今天，含边界", () => {
+    expect(
+      recentWindow("Asia/Tokyo", 7, new Date("2026-08-07T04:00:00Z"))
+    ).toEqual({ from: "2026-08-01", to: "2026-08-07" })
+  })
+  it("1 天窗口：from 与 to 同为今天", () => {
+    expect(
+      recentWindow("Asia/Tokyo", 1, new Date("2026-08-07T04:00:00Z"))
+    ).toEqual({ from: "2026-08-07", to: "2026-08-07" })
   })
 })

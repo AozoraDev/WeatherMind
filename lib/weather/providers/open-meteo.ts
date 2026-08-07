@@ -7,10 +7,11 @@ import type {
   WeatherPoint,
 } from "@/lib/schemas/weather"
 import { normalizedWeatherSchema } from "@/lib/schemas/weather"
+import { aggregateDailyForecast, recentWindow } from "@/lib/weather/daily"
 import { fetchJson } from "@/lib/weather/http"
 import { mapWmoCode } from "@/lib/weather/mapping"
 
-import type { AdapterResult, ProviderAdapter } from "./index"
+import type { AdapterResult, HistoryResult, ProviderAdapter } from "./index"
 
 // Open-Meteo 免 key、单次调用，返回 current + hourly；时区取城市时区，数值全用公制
 const API_BASE = "https://api.open-meteo.com/v1/forecast"
@@ -149,26 +150,31 @@ function mapForecastItems(
   return items
 }
 
+// 组装查询参数：常规取数不带 past_days；历史回填附加以拿回过去逐小时数据
+function buildParams(city: CityPoint, pastDays?: number): URLSearchParams {
+  const params = new URLSearchParams({
+    latitude: String(city.latitude),
+    longitude: String(city.longitude),
+    current:
+      "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m",
+    hourly:
+      "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m",
+    forecast_days: "3",
+    timezone: city.timezone,
+    temperature_unit: "celsius",
+    wind_speed_unit: "ms",
+    precipitation_unit: "mm",
+  })
+  if (pastDays !== undefined) params.set("past_days", String(pastDays))
+  return params
+}
+
 // Open-Meteo 适配器：单次调用拿实时 + 逐小时预报
 export const openMeteo: ProviderAdapter = {
   source: "open-meteo",
 
   async fetchCurrentAndForecast(city: CityPoint): Promise<AdapterResult> {
-    const params = new URLSearchParams({
-      latitude: String(city.latitude),
-      longitude: String(city.longitude),
-      current:
-        "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m",
-      hourly:
-        "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m",
-      forecast_days: "3",
-      timezone: city.timezone,
-      temperature_unit: "celsius",
-      wind_speed_unit: "ms",
-      precipitation_unit: "mm",
-    })
-
-    const res = await fetchJson(`${API_BASE}?${params}`)
+    const res = await fetchJson(`${API_BASE}?${buildParams(city)}`)
     if (!res.ok) return { ok: false, error: res.error }
 
     const parsed = openMeteoResponseSchema.safeParse(res.json)
@@ -195,5 +201,29 @@ export const openMeteo: ProviderAdapter = {
     const check = normalizedWeatherSchema.safeParse(data)
     if (!check.success) return { ok: false, error: "parse" }
     return { ok: true, data: check.data }
+  },
+
+  // 历史回填：past_days 让单次请求的逐小时序列覆盖 过去→未来，
+  // 复用常规 hourly 映射后按城市本地日聚合，只保留窗口内（含今天）的天
+  async fetchDailyHistory(
+    city: CityPoint,
+    days: number
+  ): Promise<HistoryResult> {
+    const res = await fetchJson(`${API_BASE}?${buildParams(city, days)}`)
+    if (!res.ok) return { ok: false, error: res.error }
+
+    const parsed = openMeteoResponseSchema.safeParse(res.json)
+    if (!parsed.success) return { ok: false, error: "parse" }
+    if (!parsed.data.hourly) return { ok: false, error: "noData" }
+
+    const offset = parsed.data.utc_offset_seconds ?? 32400
+    const forecast = mapForecastItems(parsed.data.hourly, offset)
+    const byDay = aggregateDailyForecast(city.timezone, forecast)
+    const { from, to } = recentWindow(city.timezone, days)
+    const daily = [...byDay.values()].filter(
+      (d) => d.day >= from && d.day <= to
+    )
+    if (daily.length === 0) return { ok: false, error: "noData" }
+    return { ok: true, daily }
   },
 }

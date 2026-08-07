@@ -176,6 +176,9 @@
       "refresh": "刷新",
       "refreshing": "采集中…",
       "refreshSuccess": "天气数据已更新",
+      "backfill": "同步近 7 天",
+      "backfilling": "同步中…",
+      "backfillSuccess": "已同步近 7 天数据",
       "empty": "暂无历史数据，点击刷新采集每日快照",
       "noData": "暂无数据",
       "sources": {

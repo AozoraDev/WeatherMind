@@ -8,9 +8,14 @@ import type {
 import { createServiceClient } from "@/supabase/service"
 import {
   daysAgoLocalDateKey,
+  recentWindow,
   todayAggregate,
 } from "@/lib/weather/daily"
-import { providers, type AdapterErrorCode } from "@/lib/weather/providers"
+import {
+  providers,
+  type AdapterErrorCode,
+  type HistoryDay,
+} from "@/lib/weather/providers"
 
 export type RunStatus = "success" | "partial" | "failed"
 export type RunTrigger = "manual" | "cron"
@@ -109,6 +114,33 @@ async function writeDailyRow(
       condition_code: agg.conditionCode,
       condition_label: agg.conditionLabel,
       condition_category: agg.conditionCategory,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "city_id,source,day" }
+  )
+  if (error) throw new Error(error.message)
+}
+
+// 回填单日落库：upsert weather_daily（onConflict 城×源×日）。
+// temperature 列非空且历史视图不展示，取高低温均值占位
+async function writeBackfillDay(
+  supabase: SupabaseClient,
+  city: CityPoint,
+  source: WeatherSource,
+  day: HistoryDay
+): Promise<void> {
+  const { error } = await supabase.from("weather_daily").upsert(
+    {
+      city_id: city.id,
+      source,
+      day: day.day,
+      high_temp: day.highTemp,
+      low_temp: day.lowTemp,
+      temperature: (day.highTemp + day.lowTemp) / 2,
+      precipitation: day.precipitation,
+      condition_code: day.conditionCode,
+      condition_label: day.conditionLabel,
+      condition_category: day.conditionCategory,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "city_id,source,day" }
@@ -235,6 +267,114 @@ export async function runWeatherPipeline(
     runId,
     status,
     trigger,
+    totalCells: total,
+    succeeded,
+    failed,
+    errors,
+  }
+}
+
+// 历史回填主入口：对每个启用城市 × 每个数据源回填近 days 天（含今天）每日快照。
+// 与 runWeatherPipeline 的区别：只写 weather_daily、temperature 取高低温均值、
+// 不写实时表、不做窗口清理（upsert 覆盖窗口内已有行）；永不抛错
+export async function runWeatherBackfill(days: number): Promise<RunSummary> {
+  const supabase = createServiceClient()
+
+  // 1. 读启用的城市；查询失败或无城市时也记一条 failed 运行（镜像常规管道）
+  const { data: cityRows, error: cityError } = await supabase
+    .from("cities")
+    .select("*")
+    .eq("is_active", true)
+    .order("name_en")
+
+  if (cityError || !cityRows || cityRows.length === 0) {
+    const runId = await openRun(supabase, "manual")
+    const firstError = cityError?.message ?? "no active cities"
+    await finalizeRun(supabase, runId, "failed", {
+      total: 0,
+      succeeded: 0,
+      failed: 0,
+      firstError,
+    })
+    return {
+      runId,
+      status: "failed",
+      trigger: "manual",
+      totalCells: 0,
+      succeeded: 0,
+      failed: 0,
+      errors: [],
+    }
+  }
+
+  const cities = (cityRows as CityRow[]).map(toCityPoint)
+  const total = cities.length * providers.length
+  const runId = await openRun(supabase, "manual")
+  const errors: RunSummary["errors"] = []
+  let succeeded = 0
+
+  // 2. 并发回填 城×源；adapter 不抛错，这里再兜底，单源失败只计一格
+  const cells = cities.flatMap((city) =>
+    providers.map(async (provider) => {
+      try {
+        const result = await provider.fetchDailyHistory(city, days)
+        if (!result.ok) {
+          return {
+            city,
+            source: provider.source,
+            error: result.error as CellError,
+          }
+        }
+        // 统一按城市时区过滤窗口，防 adapter 混入窗口外日期（Open-Meteo 会带未来天）
+        const { from, to } = recentWindow(city.timezone, days)
+        const inWindow = result.daily.filter(
+          (d) => d.day >= from && d.day <= to
+        )
+        try {
+          for (const day of inWindow) {
+            await writeBackfillDay(supabase, city, provider.source, day)
+          }
+          return { city, source: provider.source, ok: true }
+        } catch {
+          return { city, source: provider.source, error: "db" as CellError }
+        }
+      } catch {
+        return { city, source: provider.source, error: "parse" as CellError }
+      }
+    })
+  )
+
+  const results = await Promise.all(cells)
+  for (const cell of results) {
+    if ("ok" in cell) {
+      succeeded += 1
+    } else {
+      errors.push({
+        city: cell.city.nameEn,
+        source: cell.source,
+        error: cell.error,
+      })
+    }
+  }
+  const failed = total - succeeded
+
+  // 3. 写运行终态；无收尾清理（回填只写窗口内）
+  const status: RunStatus =
+    failed === 0 ? "success" : succeeded === 0 ? "failed" : "partial"
+  const firstError = errors[0]
+    ? `${errors[0].city}/${errors[0].source}:${errors[0].error}`
+    : null
+  await finalizeRun(supabase, runId, status, {
+    total,
+    succeeded,
+    failed,
+    firstError,
+  })
+
+  return {
+    runId,
+    status,
+    trigger: "manual",
     totalCells: total,
     succeeded,
     failed,
