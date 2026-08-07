@@ -24,7 +24,9 @@ jobs:
     steps:
       - name: 触发采集路由并校验响应
         run: |
+          # 规范化根地址：剥掉尾斜杠，防止拼出 //api/... 被 Vercel 308 重定向、curl 无 -L 静默退出 0 导致「绿但没执行」
+          BASE="${DEPLOY_URL%/}"
           # 路由校验 header 名固定为 x-weather-cron-secret；非 2xx 时 curl 带响应体退出非零，工作流标红便于排查
           curl -sS --fail-with-body \
             -H "x-weather-cron-secret: ${WEATHER_CRON_SECRET}" \
-            "${DEPLOY_URL}/api/cron/weather"
+            "${BASE}/api/cron/weather"
