@@ -82,6 +82,56 @@ describe("openMeteo 历史回填 fetchDailyHistory", () => {
     const result = await openMeteo.fetchDailyHistory(city, 7)
     expect(result).toEqual({ ok: false, error: "noData" })
   })
+
+  it("历史请求非 2xx 返回 http", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({}, false))
+    const result = await openMeteo.fetchDailyHistory(city, 7)
+    expect(result).toEqual({ ok: false, error: "http" })
+  })
+
+  it("历史响应解析失败返回 parse", async () => {
+    // time 应为数组，给字符串触发 schema 失败
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ hourly: { time: "2026-08-07T12:00" } })
+    )
+    const result = await openMeteo.fetchDailyHistory(city, 7)
+    expect(result).toEqual({ ok: false, error: "parse" })
+  })
+
+  it("缺 utc_offset_seconds 用默认东京偏移聚合", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        hourly: {
+          time: ["2026-08-07T12:00"],
+          temperature_2m: [28],
+          wind_speed_10m: [4],
+          weather_code: [1],
+        },
+      })
+    )
+    const result = await openMeteo.fetchDailyHistory(city, 7)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // 默认 Asia/Tokyo 偏移（32400）归日到 08-07，落在窗口内
+    expect(result.daily.map((d) => d.day)).toEqual(["2026-08-07"])
+  })
+
+  it("聚合结果全部在窗口外返回 noData", async () => {
+    // 只给未来一天（08-08），窗口过滤后为空
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        utc_offset_seconds: 32400,
+        hourly: {
+          time: ["2026-08-08T00:00"],
+          temperature_2m: [26],
+          wind_speed_10m: [3],
+          weather_code: [1],
+        },
+      })
+    )
+    const result = await openMeteo.fetchDailyHistory(city, 7)
+    expect(result).toEqual({ ok: false, error: "noData" })
+  })
 })
 
 describe("openMeteo 实时+预报 fetchCurrentAndForecast", () => {
@@ -196,5 +246,69 @@ describe("openMeteo 实时+预报 fetchCurrentAndForecast", () => {
     const result = await openMeteo.fetchCurrentAndForecast(city)
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.data.forecast).toEqual([])
+  })
+
+  it("hourly 缺 time 数组时 forecast 为空", async () => {
+    // hourly 存在但无 time：循环下界取 0，产不出条目
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        utc_offset_seconds: 32400,
+        current: currentPayload.current,
+        hourly: { temperature_2m: [28] },
+      })
+    )
+    const result = await openMeteo.fetchCurrentAndForecast(city)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.forecast).toEqual([])
+  })
+
+  it("hourly 含未映射 code 与缺 precipitation 时兜底默认值", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        utc_offset_seconds: 32400,
+        current: currentPayload.current,
+        hourly: {
+          time: ["2026-08-07T13:00", "2026-08-07T14:00"],
+          temperature_2m: [28, 27],
+          wind_speed_10m: [4, 3],
+          weather_code: [1, 100], // 100 不在 WMO 文案表
+          // precipitation 缺省 → 每项兜底 0
+        },
+      })
+    )
+    const result = await openMeteo.fetchCurrentAndForecast(city)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    // 缺 precipitation 补 0；未映射 code 用 "Unknown"（category 归 other）
+    expect(result.data.forecast).toHaveLength(2)
+    for (const item of result.data.forecast) expect(item.precipitation).toBe(0)
+    expect(result.data.forecast[1].conditionLabel).toBe("Unknown")
+    expect(result.data.forecast[1].conditionCategory).toBe("other")
+  })
+
+  it("缺 utc_offset_seconds 用默认东京偏移，缺可选字段兜底", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        current: {
+          time: "2026-08-07T12:00",
+          temperature_2m: 28,
+          wind_speed_10m: 4,
+          weather_code: 100, // 未映射 code
+        },
+      })
+    )
+    const result = await openMeteo.fetchCurrentAndForecast(city)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { current } = result.data
+    // 默认 Asia/Tokyo 偏移：JST 12:00 → UTC 03:00；缺字段兜底 0 / Unknown
+    expect(current.observedAt).toBe("2026-08-07T03:00:00.000Z")
+    expect(current.precipitation).toBe(0)
+    expect(current.conditionLabel).toBe("Unknown")
+    expect(current.conditionCategory).toBe("other")
   })
 })

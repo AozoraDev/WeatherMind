@@ -124,6 +124,58 @@ describe("openWeather 适配器", () => {
     expect(calls).toHaveLength(2)
     for (const [, init] of calls) expect(init?.cache).toBe("no-store")
   })
+
+  it("current 缺 weather/wind 时兜底（code -1、风速 0、Unknown）", async () => {
+    stubFetchByUrl({ dt: 1754438400, main: { temp: 25.3 } }, forecastPayload)
+    const result = await openWeather.fetchCurrentAndForecast(city)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { current } = result.data
+    expect(current.conditionCode).toBe(-1)
+    expect(current.conditionCategory).toBe("other")
+    expect(current.conditionLabel).toBe("Unknown")
+    expect(current.windSpeed).toBe(0)
+    expect(current.precipitation).toBe(0)
+  })
+
+  it("forecast 条目缺 weather/wind 时兜底（code -1、风速 0）", async () => {
+    stubFetchByUrl(currentPayload, {
+      list: [{ dt: 1754467200, main: { temp: 26.0 } }],
+    })
+    const result = await openWeather.fetchCurrentAndForecast(city)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const item = result.data.forecast[0]
+    expect(item.conditionCode).toBe(-1)
+    expect(item.conditionLabel).toBe("Unknown")
+    expect(item.conditionCategory).toBe("other")
+    expect(item.windSpeed).toBe(0)
+    expect(item.precipitation).toBe(0)
+  })
+
+  it("forecast 请求非 2xx 返回 http", async () => {
+    vi.mocked(fetch).mockImplementation(async (input) =>
+      String(input).includes("/weather")
+        ? jsonResponse(currentPayload)
+        : jsonResponse({}, false)
+    )
+    const result = await openWeather.fetchCurrentAndForecast(city)
+    expect(result).toEqual({ ok: false, error: "http" })
+  })
+
+  it("forecast 解析失败返回 parse", async () => {
+    vi.mocked(fetch).mockImplementation(async (input) =>
+      String(input).includes("/weather")
+        ? jsonResponse(currentPayload)
+        : jsonResponse({ list: [{ dt: "x" }] }) // 缺 main 字段触发 schema 失败
+    )
+    const result = await openWeather.fetchCurrentAndForecast(city)
+    expect(result).toEqual({ ok: false, error: "parse" })
+  })
 })
 
 describe("openWeather 历史回填 fetchDailyHistory", () => {
@@ -196,5 +248,21 @@ describe("openWeather 历史回填 fetchDailyHistory", () => {
     )
     const result = await openWeather.fetchDailyHistory(city, 7)
     expect(result).toEqual({ ok: false, error: "parse" })
+  })
+
+  it("day_summary 缺 precipitation 时降水按 0", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        date: "2026-08-01",
+        temperature: { min: 22.0, max: 29.5 },
+        // 无 precipitation 字段 → 兜底 0
+      })
+    )
+    const result = await openWeather.fetchDailyHistory(city, 7)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.daily).toHaveLength(7)
+    for (const d of result.daily) expect(d.precipitation).toBe(0)
   })
 })

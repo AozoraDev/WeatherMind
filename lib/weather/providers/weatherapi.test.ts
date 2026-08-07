@@ -110,6 +110,31 @@ describe("weatherApi 历史回填 fetchDailyHistory", () => {
     const result = await weatherApi.fetchDailyHistory(city, 7)
     expect(result).toEqual({ ok: false, error: "noData" })
   })
+
+  it("history 缺 totalprecip_mm 时降水按 0", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        forecast: {
+          forecastday: [
+            {
+              day: {
+                maxtemp_c: 31.0,
+                mintemp_c: 24.5,
+                condition: { text: "Partly cloudy", code: 1003 },
+                // 无 totalprecip_mm → 兜底 0
+              },
+            },
+          ],
+        },
+      })
+    )
+    const result = await weatherApi.fetchDailyHistory(city, 7)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.daily).toHaveLength(7)
+    for (const d of result.daily) expect(d.precipitation).toBe(0)
+  })
 })
 
 describe("weatherApi 实时+预报 fetchCurrentAndForecast", () => {
@@ -229,5 +254,50 @@ describe("weatherApi 实时+预报 fetchCurrentAndForecast", () => {
     stubFetchByUrl(currentPayload, { forecast: { forecastday: [{}] } })
     const result = await weatherApi.fetchCurrentAndForecast(city)
     expect(result).toEqual({ ok: false, error: "parse" })
+  })
+
+  it("current 缺 wind_kph/precip_mm 时兜底 0", async () => {
+    stubFetchByUrl(
+      {
+        current: {
+          last_updated_epoch: 1754442000,
+          temp_c: 27.5,
+          condition: { text: "Partly cloudy", code: 1003 },
+          // 无 wind_kph / precip_mm
+        },
+      },
+      forecastPayload
+    )
+    const result = await weatherApi.fetchCurrentAndForecast(city)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.current.windSpeed).toBe(0)
+    expect(result.data.current.precipitation).toBe(0)
+  })
+
+  it("forecast 条目缺 wind_kph/precip_mm 时兜底 0", async () => {
+    stubFetchByUrl(currentPayload, {
+      forecast: {
+        forecastday: [
+          {
+            hour: [
+              {
+                time_epoch: 1754445600,
+                temp_c: 28.0,
+                condition: { text: "Partly cloudy", code: 1003 },
+                // 无 wind_kph / precip_mm
+              },
+            ],
+          },
+        ],
+      },
+    })
+    const result = await weatherApi.fetchCurrentAndForecast(city)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.forecast[0].windSpeed).toBe(0)
+    expect(result.data.forecast[0].precipitation).toBe(0)
   })
 })
