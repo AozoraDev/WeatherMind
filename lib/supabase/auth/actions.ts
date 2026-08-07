@@ -3,6 +3,7 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 
 import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service"
 import {
   forgotSchema,
   loginSchema,
@@ -41,12 +42,28 @@ export async function loginAction(values: LoginValues): Promise<AuthResult> {
   return { ok: true }
 }
 
-// 注册 step1：创建带密码的用户并发邮箱验证码（需项目侧开启 Confirm email）
+// 注册 step1：先做「邮箱已注册」预检，未注册才创建用户并发验证码（需项目侧开启 Confirm email）
+// checkExists 仅首次发送时传 true：重发时账号刚由 signUp 创建、存在是正常态，跳过预检
 export async function registerSendCodeAction(
-  values: RegisterValues
+  values: RegisterValues,
+  opts?: { checkExists?: boolean }
 ): Promise<AuthResult> {
   const parsed = registerSchema.safeParse(values)
   if (!parsed.success) return { ok: false, error: "invalidInput" }
+
+  // 已注册邮箱不发验证码，直接返回专用错误码让客户端弹 toast
+  if (opts?.checkExists) {
+    try {
+      const { data: exists, error: checkError } = await createServiceClient().rpc(
+        "is_email_registered",
+        { p_email: parsed.data.email }
+      )
+      if (checkError) return { ok: false, error: mapAuthError(checkError) }
+      if (exists) return { ok: false, error: "userExists" }
+    } catch {
+      return { ok: false, error: "generic" }
+    }
+  }
 
   const supabase = await createClient()
   const { error } = await supabase.auth.signUp({
