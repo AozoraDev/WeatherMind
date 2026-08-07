@@ -34,8 +34,8 @@ description: 写测试前必调——Vitest 单测/组件/集成。范围见 rul
 
 ## 变异（Stryker）
 验证测试有效性，不堆覆盖率。
-- `pnpm test:stryker`；config 见 `stryker.config.json`（只变异 `lib/**/*.ts`）
+- `pnpm test:stryker`；config 见 `stryker.config.json`（白名单：只变异「有测试」的源文件）
 - 定向：`pnpm test:stryker --mutate "lib/weather/pipeline.ts"`
 - **break 阈值 80%**：低于即失败
-- CI：PR 触发，定向变异变更的 lib 文件并评论英文报告（stryker.yml）
+- CI：PR 触发，定向变异变更文件中「有测试」的，并评论英文报告（stryker.yml）
 - Survived＝没断言兜住，补断言或拆用例，**别删断言降标准**

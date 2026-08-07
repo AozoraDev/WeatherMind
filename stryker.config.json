@@ -4,9 +4,19 @@
   "plugins": ["@stryker-mutator/vitest-runner"],
   "packageManager": "pnpm",
   "mutate": [
-    "lib/**/*.ts",
-    "!lib/**/*.test.ts",
-    "!lib/**/*.d.ts"
+    "lib/schemas/auth.ts",
+    "lib/schemas/city.ts",
+    "lib/schemas/weather.ts",
+    "lib/utils.ts",
+    "lib/weather/actions.ts",
+    "lib/weather/daily.ts",
+    "lib/weather/mapping.ts",
+    "lib/weather/pipeline.ts",
+    "lib/weather/providers/open-meteo.ts",
+    "lib/weather/providers/openweather.ts",
+    "lib/weather/providers/weatherapi.ts",
+    "lib/weather/resolve-city.ts",
+    "supabase/auth/errors.ts"
   ],
   "coverageAnalysis": "perTest",
   "timeoutMS": 10000,

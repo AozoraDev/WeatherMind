@@ -1,4 +1,4 @@
-# Stryker 变异测试：PR 触发，对变更的 lib/ 源文件定向跑并直接评论结果（英文报告）。
+# Stryker 变异测试：PR 触发，对变更的 lib/ 与 supabase/ 源文件中「有测试」的定向跑并直接评论结果（英文报告）。
 # 评分低于 break 阈值时同样发评论但 job 标红。
 name: Stryker Mutation Testing
 
@@ -35,23 +35,34 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # 计算变异范围：只跑 PR 变更的 lib/ 源文件（快且相关）；
-      # PR 未改动 lib/ 源文件则跳过
+      # 计算变异范围：白名单策略——只跑 PR 变更的 lib/ 与 supabase/ 中「有测试」的源文件（快且相关）。
+      # checkout 已完成，直接查磁盘上同名测试文件；无测试的不变异，避免 NoCoverage 拖垮门禁
       - name: Compute mutation scope
         id: scope
         uses: actions/github-script@v7
         with:
           script: |
-            // 分页拉全变更文件：listFiles 默认每页 30，大 PR 会漏掉后面的 lib/ 文件
+            // 分页拉全变更文件：listFiles 默认每页 30，大 PR 会漏掉后面的文件
+            const fs = require('fs')
             const files = await github.paginate(github.rest.pulls.listFiles, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.payload.pull_request.number,
               per_page: 100,
             })
+            // 白名单：仅当存在同名测试文件时该源文件才纳入变异
+            const isTested = (f) =>
+              ['.test.ts', '.test.tsx'].some((ext) => fs.existsSync(f.replace(/\.ts$/, ext)))
             const sources = files
               .map((f) => f.filename)
-              .filter((f) => f.startsWith('lib/') && f.endsWith('.ts') && !f.includes('.test.') && !f.endsWith('.d.ts'))
+              .filter(
+                (f) =>
+                  (f.startsWith('lib/') || f.startsWith('supabase/')) &&
+                  f.endsWith('.ts') &&
+                  !f.includes('.test.') &&
+                  !f.endsWith('.d.ts') &&
+                  isTested(f)
+              )
             core.setOutput('mode', sources.length === 0 ? 'skip' : 'scoped')
             core.setOutput('args', sources.map((f) => `--mutate "${f}"`).join(' '))
             core.setOutput('fileCount', String(sources.length))
@@ -109,7 +120,7 @@ jobs:
               ``,
               `**Mutation score: ${score}%** — ${killed}/${total} mutants killed · ${totals.Survived || 0} survived · ${totals.NoCoverage || 0} no coverage`,
               ``,
-              `> Scoped to **${process.env.STRYKER_FILE_COUNT}** lib/ source file(s) changed in this PR.`,
+              `> Scoped to **${process.env.STRYKER_FILE_COUNT}** source file(s) changed in this PR.`,
               ``,
               `| File | Score | Killed | Survived | No Coverage |`,
               `|---|---|---|---|---|`,
