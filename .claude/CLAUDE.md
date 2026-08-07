@@ -13,7 +13,7 @@ WeatherMind：Next.js 16.2.6（App Router）+ React 19.2.4 + Tailwind CSS 4 + sh
 ## 目录
 
 - `app/[locale]/` — 页面与布局；`app/api/` — Route Handler（cron 等，不走 proxy 中间件）
-- `lib/supabase/` — server.ts（会话客户端）/ service.ts（service_role 写入端）/ proxy.ts（中间件鉴权+会话刷新）/ auth/ / migrations/
+- `supabase/` — server.ts（会话客户端）/ service.ts（service_role 写入端）/ proxy.ts（中间件鉴权+会话刷新）/ auth/ / migrations/
 - `lib/weather/` — 天气管道：providers/*（各源 adapter）、http.ts（唯一 fetch 封装）、pipeline.ts（城×源采集）、daily.ts（按城市时区归日）、mapping.ts（condition 归一化）、actions.ts（管理员手动刷新）、city-actions.ts
 - `lib/schemas/` — Zod schema（前后端共用：城市 / 天气 / 认证）
 - `components/`、`hooks/`、`i18n/`（next-intl）、`docs/`（快速上手，仅供人读；**agent 不要读**）

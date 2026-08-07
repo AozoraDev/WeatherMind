@@ -9,6 +9,15 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
+    coverage: {
+      // v8 覆盖率：lcov 供 codecov 上传，text 供 CI 日志查看
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      reportsDirectory: "./coverage",
+      // 只统计 lib/ 与 supabase/ 下的业务逻辑；生成/配置类文件排除，保证数字真实
+      include: ["lib/**", "supabase/**"],
+      exclude: ["**/*.test.*", "**/*.d.ts", "**/*.config.*", "**/*.sql"],
+    },
   },
   resolve: {
     alias: {

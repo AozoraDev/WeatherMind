@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server"
 
-import { CitiesView } from "@/components/dashboard/weather/cities-view"
-import { createClient } from "@/lib/supabase/server"
+import { CitiesView } from "@/components/dashboard/cities/cities-view"
+import { createClient } from "@/supabase/server"
 import { isAdminEmail } from "@/lib/weather/admin"
 import type { CityRow } from "@/lib/weather/view-types"
 

@@ -2,8 +2,8 @@
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 
-import { createClient } from "@/lib/supabase/server"
-import { createServiceClient } from "@/lib/supabase/service"
+import { createClient } from "@/supabase/server"
+import { createServiceClient } from "@/supabase/service"
 import {
   forgotSchema,
   loginSchema,
