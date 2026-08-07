@@ -5,7 +5,7 @@ import { CloudSun, History, MapPin, Trash2 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useState } from "react"
 
-import { CityAddDialog } from "@/components/dashboard/weather/city-add-dialog"
+import { CityAddDialog } from "@/components/dashboard/cities/city-add-dialog"
 import { ButtonBlue } from "@/components/ui-preset/button"
 import { DataTable, DataTableRow } from "@/components/ui-preset/data-table"
 import { useToast } from "@/components/ui-preset/toast"

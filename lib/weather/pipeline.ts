@@ -5,7 +5,7 @@ import type {
   NormalizedWeather,
   WeatherSource,
 } from "@/lib/schemas/weather"
-import { createServiceClient } from "@/lib/supabase/service"
+import { createServiceClient } from "@/supabase/service"
 import {
   daysAgoLocalDateKey,
   todayAggregate,

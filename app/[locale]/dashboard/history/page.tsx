@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server"
 
-import { HistoryView } from "@/components/dashboard/weather/history-view"
-import { createClient } from "@/lib/supabase/server"
+import { HistoryView } from "@/components/dashboard/history/history-view"
+import { createClient } from "@/supabase/server"
 import { isAdminEmail } from "@/lib/weather/admin"
 import { daysAgoLocalDateKey } from "@/lib/weather/daily"
 import type { CityRow, DailyRow } from "@/lib/weather/view-types"

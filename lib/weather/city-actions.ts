@@ -6,8 +6,8 @@ import {
   type CreateCityValues,
   type DeleteCityValues,
 } from "@/lib/schemas/city"
-import { createClient } from "@/lib/supabase/server"
-import { createServiceClient } from "@/lib/supabase/service"
+import { createClient } from "@/supabase/server"
+import { createServiceClient } from "@/supabase/service"
 
 import { isAdminEmail } from "./admin"
 import type { CityErrorCode } from "./errors"

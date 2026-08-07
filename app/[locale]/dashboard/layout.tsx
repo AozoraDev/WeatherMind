@@ -1,7 +1,7 @@
 import { DashboardNavbar } from "@/components/dashboard/navbar"
 import { Sidenav } from "@/components/dashboard/sidenav"
 import { redirect } from "@/i18n/navigation"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/supabase/server"
 
 // 仪表盘布局：左侧固定导航栏 + 右侧顶部导航与内容区；
 // 服务端读会话取用户邮箱，未登录兜底跳回落地页（常规拦截由 proxy 承担）

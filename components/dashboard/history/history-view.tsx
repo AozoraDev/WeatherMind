@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl"
 import { useMutation } from "@tanstack/react-query"
 
 import { ButtonBlue } from "@/components/ui-preset/button"
+import { HistoryCharts } from "@/components/dashboard/history/history-charts"
 import { DataTable, DataTableRow } from "@/components/ui-preset/data-table"
 import { SOURCE_COLORS } from "@/components/ui-preset/weather-city-card"
 import { TableCell } from "@/components/ui/table"
@@ -18,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useRouter } from "@/i18n/navigation"
-import { cn } from "@/lib/utils"
+import { cn, formatWeatherNumber } from "@/lib/utils"
 import { refreshWeatherAction } from "@/lib/weather/actions"
 import { WeatherError } from "@/lib/weather/errors"
 import {
@@ -174,6 +175,9 @@ export function HistoryView({
             )}
           </div>
 
+          {/* 图表区：温度趋势折线图 + 降水/天气概览卡，置于表格上方；无数据时随表格一并空置 */}
+          {filtered.length > 0 && <HistoryCharts rows={filtered} />}
+
           <DataTable
             headers={[
               { label: t("columns.date") },
@@ -195,9 +199,9 @@ export function HistoryView({
                 >
                   {t(`sources.${row.source}`)}
                 </TableCell>
-                <TableCell>{row.high_temp.toFixed(1)}°C</TableCell>
-                <TableCell>{row.low_temp.toFixed(1)}°C</TableCell>
-                <TableCell>{row.precipitation.toFixed(1)} mm</TableCell>
+                <TableCell>{formatWeatherNumber(row.high_temp)}°C</TableCell>
+                <TableCell>{formatWeatherNumber(row.low_temp)}°C</TableCell>
+                <TableCell>{formatWeatherNumber(row.precipitation)} mm</TableCell>
                 <TableCell>{conditionOf(row)}</TableCell>
               </DataTableRow>
             ))}

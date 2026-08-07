@@ -11,8 +11,8 @@ import { Link, useRouter } from "@/i18n/navigation"
 import {
   registerSendCodeAction,
   registerVerifyCodeAction,
-} from "@/lib/supabase/auth/actions"
-import { AuthError } from "@/lib/supabase/auth/errors"
+} from "@/supabase/auth/actions"
+import { AuthError } from "@/supabase/auth/errors"
 import { registerSchema } from "@/lib/schemas/auth"
 
 import { AuthField } from "./presets/auth-field"

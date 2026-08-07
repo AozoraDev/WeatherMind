@@ -77,6 +77,7 @@
   "dashboard": {
     "title": "Dashboard",
     "desc": "Weather features are under development — stay tuned",
+    "loading": "Loading…",
     "sidebar": {
       "dashboard": "Dashboard",
       "aiAgent": "AI Agent",
@@ -199,6 +200,30 @@
         "snow": "Snow",
         "storm": "Thunderstorm",
         "other": "Other"
+      },
+      "stats": {
+        "avgHigh": "Avg high",
+        "avgLow": "Avg low",
+        "dominant": "Dominant"
+      },
+      "tempChart": {
+        "title": "Temperature Trend",
+        "desc": "High / low temperature by platform, past 7 days",
+        "high": "High",
+        "low": "Low",
+        "legendHint": "Solid: high · Dashed: low"
+      },
+      "precipChart": {
+        "title": "Total Precipitation",
+        "desc": "Daily average across platforms, past 7 days",
+        "unit": "mm",
+        "peak": "Peak {day} · {value} mm"
+      },
+      "weatherChart": {
+        "title": "Weather Breakdown",
+        "desc": "Days per condition, past 7 days",
+        "dayUnit": "d",
+        "days": "{count, plural, one {# day} other {# days}}"
       },
       "errors": {
         "unauthorized": "Please log in first",

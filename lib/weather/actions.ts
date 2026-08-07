@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/supabase/server"
 
 import { isAdminEmail } from "./admin"
 import { runWeatherPipeline, type RunSummary } from "./pipeline"

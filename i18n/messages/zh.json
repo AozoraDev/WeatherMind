@@ -77,6 +77,7 @@
   "dashboard": {
     "title": "仪表盘",
     "desc": "天气功能开发中，敬请期待",
+    "loading": "加载中…",
     "sidebar": {
       "dashboard": "仪表盘",
       "aiAgent": "AI 助手",
@@ -199,6 +200,30 @@
         "snow": "雪",
         "storm": "雷暴",
         "other": "其他"
+      },
+      "stats": {
+        "avgHigh": "平均最高温",
+        "avgLow": "平均最低温",
+        "dominant": "主导天气"
+      },
+      "tempChart": {
+        "title": "温度趋势",
+        "desc": "近 7 日各平台最高 / 最低温",
+        "high": "最高温",
+        "low": "最低温",
+        "legendHint": "实线最高温 · 虚线最低温"
+      },
+      "precipChart": {
+        "title": "累计降水",
+        "desc": "近 7 日各平台日均降水",
+        "unit": "mm",
+        "peak": "峰值 {day} · {value} mm"
+      },
+      "weatherChart": {
+        "title": "天气分布",
+        "desc": "近 7 日各类天气出现天数",
+        "dayUnit": "天",
+        "days": "{count} 天"
       },
       "errors": {
         "unauthorized": "请先登录",

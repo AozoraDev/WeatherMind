@@ -1,0 +1,18 @@
+# Codecov 状态检查策略
+coverage:
+  status:
+    project:
+      default:
+        # 以 base 提交覆盖率为准，小幅波动不标红
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        # 新提交代码覆盖率红线，可随测试完善逐步收紧
+        target: 60%
+
+# 无需统计的路径（已在 vitest.config.ts include 排除，此处兜底）
+ignore:
+  - "app/**"
+  - "components/ui/**"
+  - "i18n/**"

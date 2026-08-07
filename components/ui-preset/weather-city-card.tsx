@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
+import { cn, formatWeatherNumber } from "@/lib/utils"
 
 // 三个数据源在卡片内各自的平台名配色（浅色模式下可读），与历史表格平台列保持同套配色
 export const SOURCE_COLORS: Record<WeatherSource, string> = {
@@ -93,11 +93,14 @@ export function WeatherCityCard({
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-lg font-semibold tabular-nums">
-                      {cell.temperature.toFixed(1)}°C
+                      {formatWeatherNumber(cell.temperature)}°C
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {humidityLabel} {cell.humidity ?? "—"}% · {windLabel}{" "}
-                      {cell.wind_speed.toFixed(1)} m/s
+                      {humidityLabel}{" "}
+                      {cell.humidity == null
+                        ? "—"
+                        : formatWeatherNumber(cell.humidity)}
+                      % · {windLabel} {formatWeatherNumber(cell.wind_speed)} m/s
                     </p>
                   </div>
                 </>
