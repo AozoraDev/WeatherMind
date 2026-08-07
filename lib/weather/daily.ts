@@ -67,7 +67,8 @@ export function aggregateDailyForecast(
 }
 
 // 指定时区「今天」的本地日期键；now 供测试注入（默认取真实当前时刻）
-export function localTodayKey(
+// 仅本模块内部（todayAggregate / recentWindow）使用，不对外暴露
+function localTodayKey(
   timeZone: string,
   now: Date = new Date()
 ): string {

@@ -4,10 +4,11 @@ import { HistoryView } from "@/components/dashboard/history/history-view"
 import { createClient } from "@/supabase/server"
 import { isAdminEmail } from "@/lib/weather/admin"
 import { daysAgoLocalDateKey } from "@/lib/weather/daily"
+import { resolveCityParam } from "@/lib/weather/resolve-city"
 import type { CityRow, DailyRow } from "@/lib/weather/view-types"
 
-// 历史天气页：读启用的城市与近 7 天每日快照，交给客户端组件按城市/源切换展示；
-// 支持 ?city=<name_en> 查询参数预选城市（城市列表页「显示历史」按钮跳转时携带）
+// 历史天气页：解析 ?city= 参数为唯一城市，只取该城近 7 天每日快照，交给客户端组件展示；
+// 城市列表页「显示历史」按钮跳转时携带 ?city=<name_en>，参数缺失/无效由 resolveCityParam 补齐重定向
 export default async function HistoryPage({
   searchParams,
 }: {
@@ -15,22 +16,26 @@ export default async function HistoryPage({
 }) {
   const t = await getTranslations("dashboard.history")
   const supabase = await createClient()
-  const { city: initialCityName } = await searchParams
+  const { city: rawCity } = await searchParams
 
-  // 参考时区沿用预报页的 Asia/Tokyo（当前城市集全为该时区）；
-  // 若未来出现多时区城市，需逐城计算下界而非统一用参考时区
-  const cutoff = daysAgoLocalDateKey("Asia/Tokyo", 6)
-
-  const [citiesRes, dailyRes, userRes] = await Promise.all([
+  const [citiesRes, userRes] = await Promise.all([
     supabase.from("cities").select("*").eq("is_active", true).order("name_en"),
-    supabase
-      .from("weather_daily")
-      .select("*")
-      .gte("day", cutoff)
-      .order("day", { ascending: true })
-      .order("source"),
     supabase.auth.getUser(),
   ])
+
+  const cities = (citiesRes.data ?? []) as CityRow[]
+  // 先解析出唯一城市（内部可能重定向补齐参数），截止日按该城自身时区计算，避免写死参考时区
+  const selected = await resolveCityParam(cities, rawCity, "/dashboard/history")
+  const cutoff = daysAgoLocalDateKey(selected?.timezone ?? "Asia/Tokyo", 6)
+  const dailyRes = selected
+    ? await supabase
+        .from("weather_daily")
+        .select("*")
+        .eq("city_id", selected.id)
+        .gte("day", cutoff)
+        .order("day", { ascending: true })
+        .order("source")
+    : null
 
   return (
     <div className="flex h-full flex-col gap-6 p-6">
@@ -39,10 +44,10 @@ export default async function HistoryPage({
         <p className="mt-1 text-sm text-muted-foreground">{t("desc")}</p>
       </div>
       <HistoryView
-        cities={(citiesRes.data ?? []) as CityRow[]}
-        rows={(dailyRes.data ?? []) as DailyRow[]}
+        cities={cities}
+        selectedCityId={selected?.id ?? ""}
+        rows={(dailyRes?.data ?? []) as DailyRow[]}
         isAdmin={isAdminEmail(userRes.data.user?.email)}
-        initialCityName={initialCityName}
       />
     </div>
   )
