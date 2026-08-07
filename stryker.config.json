@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "packageManager": "pnpm",
+  "mutate": [
+    "lib/schemas/auth.ts",
+    "lib/schemas/city.ts",
+    "lib/schemas/weather.ts",
+    "lib/utils.ts",
+    "lib/weather/actions.ts",
+    "lib/weather/daily.ts",
+    "lib/weather/mapping.ts",
+    "lib/weather/pipeline.ts",
+    "lib/weather/providers/open-meteo.ts",
+    "lib/weather/providers/openweather.ts",
+    "lib/weather/providers/weatherapi.ts",
+    "lib/weather/resolve-city.ts",
+    "supabase/auth/errors.ts"
+  ],
+  "coverageAnalysis": "perTest",
+  "timeoutMS": 10000,
+  "reporters": ["clear-text", "progress", "html", "json"],
+  "htmlReporter": {
+    "fileName": "reports/stryker/html/index.html"
+  },
+  "jsonReporter": {
+    "fileName": "reports/stryker/mutation-report.json"
+  },
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": 80
+  }
+}
