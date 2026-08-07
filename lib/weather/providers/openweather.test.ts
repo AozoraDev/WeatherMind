@@ -46,7 +46,11 @@ const forecastPayload = {
 }
 
 // 按 URL 分发伪响应：/weather 走实时，其余走预报
-function stubFetchByUrl(current = currentPayload, forecast = forecastPayload) {
+// 载荷视为不可信输入（unknown），由适配器内 Zod safeParse 兜底校验
+function stubFetchByUrl(
+  current: unknown = currentPayload,
+  forecast: unknown = forecastPayload
+) {
   const fetchMock = vi.mocked(fetch)
   fetchMock.mockImplementation(async (input) => {
     const url = String(input)
@@ -89,7 +93,7 @@ describe("openWeather 适配器", () => {
   })
 
   it("响应缺 main 字段返回 parse", async () => {
-    stubFetchByUrl({ dt: 1754438400 } as never, forecastPayload)
+    stubFetchByUrl({ dt: 1754438400 }, forecastPayload)
     const result = await openWeather.fetchCurrentAndForecast(city)
     expect(result).toEqual({ ok: false, error: "parse" })
   })
