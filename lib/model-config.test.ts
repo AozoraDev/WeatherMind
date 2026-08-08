@@ -50,6 +50,15 @@ describe("存储", () => {
     expect(getModelConfig(EMAIL)).toBeNull()
   })
 
+  it("存储未变时重复读取返回同一引用（快照缓存）", () => {
+    saveModelConfig(EMAIL, CONFIG)
+    const first = getModelConfig(EMAIL)
+    const second = getModelConfig(EMAIL)
+    // 先验值正确，再验引用稳定——否则跨用例 memo 污染会让 toBe 空通过
+    expect(first).toEqual(CONFIG)
+    expect(second).toBe(first)
+  })
+
   it("不同邮箱隔离", () => {
     saveModelConfig(EMAIL, CONFIG)
     expect(getModelConfig("other@example.com")).toBeNull()
