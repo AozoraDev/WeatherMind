@@ -7,6 +7,8 @@
     "lib/schemas/auth.ts",
     "lib/schemas/city.ts",
     "lib/schemas/weather.ts",
+    "lib/model-config.ts",
+    "lib/schemas/ai.ts",
     "lib/utils.ts",
     "lib/weather/actions.ts",
     "lib/weather/daily.ts",

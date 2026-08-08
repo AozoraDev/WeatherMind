@@ -261,7 +261,39 @@
     },
     "settings": {
       "title": "Settings",
-      "desc": "Settings are under development — stay tuned"
+      "desc": "Manage your preferences and AI model connection",
+      "modelConfig": {
+        "title": "AI Model",
+        "desc": "Connect an OpenAI-compatible model service to enable AI features",
+        "configure": "Configure Model",
+        "clear": "Clear Config",
+        "dialogTitle": "Configure AI Model",
+        "dialogDesc": "Enter the service URL and API key, then test the connection to load available models",
+        "baseUrl": "API Base URL",
+        "apiKey": "API Key",
+        "model": "Model",
+        "selectPlaceholder": "Select a model",
+        "test": "Test Connection",
+        "testing": "Testing…",
+        "confirm": "Confirm",
+        "saving": "Saving…",
+        "cancel": "Cancel",
+        "notConfigured": "No AI model configured yet",
+        "success": {
+          "tested": "Connection succeeded",
+          "saved": "Model configuration saved",
+          "cleared": "Model configuration cleared"
+        },
+        "errors": {
+          "invalidUrl": "Please enter a valid URL",
+          "apiKeyRequired": "Please enter an API key",
+          "modelRequired": "Please select a model",
+          "network": "Network error. Please try again.",
+          "http": "Connection failed. Check the URL and API key and retry.",
+          "parse": "Unexpected response from the model service.",
+          "generic": "Something went wrong. Please try again."
+        }
+      }
     },
     "logout": "Log out",
     "success": {

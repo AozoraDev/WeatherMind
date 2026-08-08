@@ -73,7 +73,7 @@ export function DashboardNavbar({ email }: { email: string }) {
       <div className="flex items-center gap-3">
         <LanguageToggle />
         <span className="text-sm font-medium text-slate-700">{email}</span>
-        <LogoutButton />
+        <LogoutButton email={email} />
       </div>
     </header>
   )

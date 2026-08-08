@@ -9,9 +9,10 @@ import { useToast } from "@/components/ui-preset/toast"
 import { useRouter } from "@/i18n/navigation"
 import { logoutAction } from "@/supabase/auth/actions"
 import { AuthError } from "@/supabase/auth/errors"
+import { clearModelConfig } from "@/lib/model-config"
 
-// 退出登录按钮：调服务端动作清除会话，成功后弹提示并跳回落地页
-export function LogoutButton() {
+// 退出登录按钮：调服务端动作清除会话，退出即清除本地模型配置，成功后弹提示并跳回落地页
+export function LogoutButton({ email }: { email: string }) {
   const t = useTranslations("dashboard")
   const router = useRouter()
   const toast = useToast()
@@ -22,6 +23,7 @@ export function LogoutButton() {
       if (!res.ok) throw new AuthError(res.error)
     },
     onSuccess: () => {
+      clearModelConfig(email) // 客户端缓存随会话退出清除，避免跨账号残留
       toast.success(t("success.logout"))
       router.push("/")
     },
