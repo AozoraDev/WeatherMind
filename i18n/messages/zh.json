@@ -261,7 +261,39 @@
     },
     "settings": {
       "title": "设置",
-      "desc": "设置功能开发中，敬请期待"
+      "desc": "管理偏好设置与 AI 模型连接",
+      "modelConfig": {
+        "title": "AI 模型",
+        "desc": "连接兼容 OpenAI 协议的模型服务，以启用 AI 功能",
+        "configure": "配置模型",
+        "clear": "清除配置",
+        "dialogTitle": "配置 AI 模型",
+        "dialogDesc": "填写服务地址与 API Key，测试连接成功后即可选择可用模型",
+        "baseUrl": "API 地址",
+        "apiKey": "API Key",
+        "model": "模型",
+        "selectPlaceholder": "请选择模型",
+        "test": "测试链接",
+        "testing": "测试中…",
+        "confirm": "确定",
+        "saving": "保存中…",
+        "cancel": "取消",
+        "notConfigured": "尚未配置 AI 模型",
+        "success": {
+          "tested": "连接成功",
+          "saved": "模型配置已保存",
+          "cleared": "模型配置已清除"
+        },
+        "errors": {
+          "invalidUrl": "请输入合法的 URL",
+          "apiKeyRequired": "请输入 API Key",
+          "modelRequired": "请选择模型",
+          "network": "网络异常，请稍后再试",
+          "http": "连接失败，请检查地址与 API Key 后重试",
+          "parse": "模型服务返回了无法识别的响应",
+          "generic": "操作失败，请稍后再试"
+        }
+      }
     },
     "logout": "退出登录",
     "success": {
