@@ -84,6 +84,7 @@
       "cities": "Cities",
       "forecast": "Forecast",
       "history": "History",
+      "logs": "Logs",
       "settings": "Settings"
     },
     "aiAgent": {
@@ -232,6 +233,31 @@
         "unauthorized": "Please log in first",
         "generic": "Refresh failed. Please try again."
       }
+    },
+    "logs": {
+      "title": "Collection Logs",
+      "desc": "Weather collection run history",
+      "columns": {
+        "status": "Status",
+        "trigger": "Trigger",
+        "total": "Total",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "error": "Error",
+        "startedAt": "Started",
+        "finishedAt": "Finished"
+      },
+      "status": {
+        "running": "Collecting",
+        "success": "Success",
+        "partial": "Partial failure",
+        "failed": "Failed"
+      },
+      "trigger": {
+        "manual": "Manual",
+        "cron": "Scheduled"
+      },
+      "empty": "No runs yet"
     },
     "settings": {
       "title": "Settings",

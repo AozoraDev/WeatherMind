@@ -31,6 +31,7 @@ export function DashboardNavbar({ email }: { email: string }) {
     cities: t("sidebar.cities"),
     forecast: t("sidebar.forecast"),
     history: t("sidebar.history"),
+    logs: t("sidebar.logs"),
     settings: t("sidebar.settings"),
   }
 

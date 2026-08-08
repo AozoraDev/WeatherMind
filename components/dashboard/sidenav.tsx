@@ -6,6 +6,7 @@ import {
   History,
   LayoutDashboard,
   MapPin,
+  ScrollText,
   Settings,
   type LucideIcon,
 } from "lucide-react"
@@ -17,11 +18,12 @@ import { Link, usePathname } from "@/i18n/navigation"
 import { cn } from "@/lib/utils"
 
 // 侧边导航：固定 w-56 宽度，顶部品牌区 + 图标导航列表；列表项图标在左、文案在右
-export function Sidenav() {
+export function Sidenav({ isAdmin }: { isAdmin: boolean }) {
   const t = useTranslations("dashboard")
   const pathname = usePathname()
 
-  // 导航项配置：href 为空表示功能未上线，渲染为禁用占位
+  // 导航项配置：href 为空表示功能未上线，渲染为禁用占位；
+  // 「日志」仅管理员可见（页面层另有重定向守卫双保险）
   const items: { label: string; href?: string; icon: LucideIcon }[] = [
     {
       label: t("sidebar.dashboard"),
@@ -36,6 +38,9 @@ export function Sidenav() {
       icon: CloudSun,
     },
     { label: t("sidebar.history"), href: "/dashboard/history", icon: History },
+    ...(isAdmin
+      ? [{ label: t("sidebar.logs"), href: "/dashboard/logs", icon: ScrollText }]
+      : []),
     {
       label: t("sidebar.settings"),
       href: "/dashboard/settings",
