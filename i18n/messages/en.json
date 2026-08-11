@@ -168,6 +168,136 @@
       "errors": {
         "unauthorized": "Please log in first",
         "generic": "Refresh failed. Please try again."
+      },
+      "forecastAgent": {
+        "title": "Today's Forecast",
+        "localDay": "local day",
+        "reasoningTitle": "AI Reasoning",
+        "toolArgsLabel": "Args",
+        "toolResultLabel": "Observation",
+        "desc": "Deterministic ensemble prediction from 3 sources with AI interpretation",
+        "generate": "Predict today",
+        "generating": "Generating…",
+        "noModelTooltip": "Configure an AI model to enable",
+        "generateTooltip": "Generate today's prediction card",
+        "empty": "Click \"Predict today\" to generate",
+        "pending": "Prediction is being generated…",
+        "failed": "Prediction generation failed",
+        "derivation": "Derivation",
+        "derivationHint": "Fixed template metrics, computed by code and reproducible",
+        "weightsLabel": "Source weights",
+        "formulaLabel": "Formula version",
+        "modelLabel": "Model",
+        "tokensLabel": "Tokens",
+        "tokensInOut": " (prompt {prompt} · output {output})",
+        "summaryLabel": "Summary",
+        "pointsLabel": "Key points",
+        "adviceLabel": "Advice",
+        "duplicate": "Already generated today — showing the existing result",
+        "phase": {
+          "start": "Starting",
+          "read": "Reading records",
+          "claim": "Claiming task",
+          "ensemble": "Ensemble",
+          "agent": "AI reasoning",
+          "validate": "Validating",
+          "settle": "Saving"
+        },
+        "riskNone": "None",
+        "units": {
+          "wind": "Bft"
+        },
+        "metrics": {
+          "high": { "label": "High", "hint": "Weighted ensemble mean" },
+          "low": { "label": "Low", "hint": "Weighted ensemble mean" },
+          "highInterval": {
+            "label": "High range",
+            "hint": "Mean ± 1.28σ (≈80% confidence)"
+          },
+          "lowInterval": {
+            "label": "Low range",
+            "hint": "Mean ± 1.28σ (≈80% confidence)"
+          },
+          "poP": {
+            "label": "Rain chance",
+            "hint": "Sum of weights of rain-reporting sources"
+          },
+          "precipLevel": {
+            "label": "Precip level",
+            "hint": "Rated by weighted precip mean"
+          },
+          "condition": {
+            "label": "Condition",
+            "hint": "Weighted majority vote"
+          },
+          "wind": { "label": "Wind", "hint": "Weighted wind speed → Beaufort" },
+          "humidity": { "label": "Humidity", "hint": "Weighted average" },
+          "confidence": {
+            "label": "Confidence",
+            "hint": "Inter-source agreement (history-free)"
+          },
+          "risk": {
+            "label": "Risk flags",
+            "hint": "Threshold + multi-source agreement"
+          }
+        },
+        "metricBadge": {
+          "high": "High",
+          "low": "Low",
+          "highInterval": "High range",
+          "lowInterval": "Low range",
+          "poP": "Rain",
+          "precipLevel": "Precip",
+          "condition": "Weather",
+          "wind": "Wind",
+          "humidity": "Humidity",
+          "confidence": "Confidence",
+          "risk": "Risk"
+        },
+        "confidence": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        },
+        "precipLevel": {
+          "none": "No rain",
+          "light": "Light",
+          "moderate": "Moderate",
+          "heavy": "Heavy"
+        },
+        "condition": {
+          "clear": "Clear",
+          "partlyCloudy": "Partly cloudy",
+          "cloudy": "Cloudy",
+          "fog": "Fog",
+          "rain": "Rain",
+          "snow": "Snow",
+          "storm": "Thunderstorm",
+          "other": "Other"
+        },
+        "riskType": {
+          "heat": "Heat",
+          "cold": "Cold",
+          "heavyRain": "Heavy rain",
+          "wind": "Wind",
+          "storm": "Storm",
+          "snow": "Snow",
+          "diurnal": "Diurnal range"
+        },
+        "riskLevel": {
+          "info": "Info",
+          "warning": "Watch"
+        },
+        "error": {
+          "no-model": "Configure an AI model in Settings first",
+          "retry-cooldown": "Generation failed. Try again in 5 minutes.",
+          "insufficient-data": "Not enough source data for today",
+          "provider": "AI service call failed. Try again later.",
+          "parse": "AI response could not be parsed",
+          "consistency": "AI interpretation failed consistency check",
+          "react-loop": "AI did not reach a conclusion within the step limit",
+          "generic": "Generation failed. Try again later."
+        }
       }
     },
     "history": {

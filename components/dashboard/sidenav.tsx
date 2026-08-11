@@ -39,7 +39,13 @@ export function Sidenav({ isAdmin }: { isAdmin: boolean }) {
     },
     { label: t("sidebar.history"), href: "/dashboard/history", icon: History },
     ...(isAdmin
-      ? [{ label: t("sidebar.logs"), href: "/dashboard/logs", icon: ScrollText }]
+      ? [
+          {
+            label: t("sidebar.logs"),
+            href: "/dashboard/logs",
+            icon: ScrollText,
+          },
+        ]
       : []),
     {
       label: t("sidebar.settings"),

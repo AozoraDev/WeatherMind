@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  connectionSchema,
-  modelConfigSchema,
-  modelsResponseSchema,
-} from "./ai"
+import { connectionSchema, modelConfigSchema, modelsResponseSchema } from "./ai"
 
 // 断言 safeParse 失败且指定路径的校验 message 符合预期（与 auth.test.ts 同款助手）
 function expectMessage(

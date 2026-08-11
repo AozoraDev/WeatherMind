@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { CityPoint, NormalizedWeather, WeatherSource } from "@/lib/schemas/weather"
+import type {
+  CityPoint,
+  NormalizedWeather,
+  WeatherSource,
+} from "@/lib/schemas/weather"
 
 import { runWeatherBackfill, runWeatherPipeline } from "./pipeline"
 
@@ -93,7 +97,10 @@ interface QueryBuilder {
 
 function makeSupabaseMock() {
   const state = {
-    cities: { data: null as unknown, error: null as { message: string } | null },
+    cities: {
+      data: null as unknown,
+      error: null as { message: string } | null,
+    },
     runId: "run-1" as string | null,
     upsertError: null as { message: string } | null,
     dailyUpsertError: null as { message: string } | null,
@@ -134,7 +141,8 @@ function makeSupabaseMock() {
       }
 
       function finalResult(): DbResult {
-        if (table === "cities") return { data: state.cities.data, error: state.cities.error }
+        if (table === "cities")
+          return { data: state.cities.data, error: state.cities.error }
         if (table === "weather_runs")
           return { data: state.runId ? { id: state.runId } : null, error: null }
         if (table === "weather_daily" && isDelete)
@@ -155,7 +163,9 @@ function makeSupabaseMock() {
 // 组装一次运行所需的假客户端，并挂到 createServiceClient
 function stubService() {
   const { client, state } = makeSupabaseMock()
-  serviceMock.createServiceClient.mockReturnValue(client as unknown as SupabaseClient)
+  serviceMock.createServiceClient.mockReturnValue(
+    client as unknown as SupabaseClient
+  )
   return state
 }
 
@@ -204,19 +214,33 @@ describe("runWeatherPipeline", () => {
     }
 
     // 实时表 + 每日快照各一格：城×源×2 张表 = 4 次 upsert
-    expect(state.upserts.filter((u) => u.table === "weather_current")).toHaveLength(2)
-    expect(state.upserts.filter((u) => u.table === "weather_daily")).toHaveLength(2)
+    expect(
+      state.upserts.filter((u) => u.table === "weather_current")
+    ).toHaveLength(2)
+    expect(
+      state.upserts.filter((u) => u.table === "weather_daily")
+    ).toHaveLength(2)
 
     // 实时行带城与源；每日行走当天快照兜底（forecast 为空 → 用 current 值）
-    const currentRows = state.upserts.filter((u) => u.table === "weather_current")
+    const currentRows = state.upserts.filter(
+      (u) => u.table === "weather_current"
+    )
     for (const { rows } of currentRows) {
-      const row = rows as { city_id: string; source: WeatherSource; temperature: number }
+      const row = rows as {
+        city_id: string
+        source: WeatherSource
+        temperature: number
+      }
       expect(row.city_id).toBe("c1")
       expect(row.temperature).toBe(25)
     }
     const dailyRows = state.upserts.filter((u) => u.table === "weather_daily")
     for (const { rows } of dailyRows) {
-      const row = rows as { day: string; high_temp: number; temperature: number }
+      const row = rows as {
+        day: string
+        high_temp: number
+        temperature: number
+      }
       expect(row.day).toBe("2026-08-07")
       expect(row.high_temp).toBe(25)
       expect(row.temperature).toBe(25)
@@ -224,7 +248,10 @@ describe("runWeatherPipeline", () => {
 
     // 运行登记 + 终态：running 插入一次、update 带 success 计数
     expect(state.inserts).toHaveLength(1)
-    expect(state.inserts[0].rows).toMatchObject({ status: "running", trigger: "manual" })
+    expect(state.inserts[0].rows).toMatchObject({
+      status: "running",
+      trigger: "manual",
+    })
     expect(state.updates).toHaveLength(1)
     expect(state.updates[0].rows).toMatchObject({
       status: "success",
@@ -241,9 +268,17 @@ describe("runWeatherPipeline", () => {
 
     const summary = await runWeatherPipeline("cron")
 
-    expect(summary).toMatchObject({ status: "failed", totalCells: 0, succeeded: 0, failed: 0 })
+    expect(summary).toMatchObject({
+      status: "failed",
+      totalCells: 0,
+      succeeded: 0,
+      failed: 0,
+    })
     for (const fn of providersMock.current) expect(fn).not.toHaveBeenCalled()
-    expect(state.updates[0].rows).toMatchObject({ status: "failed", error: "db exploded" })
+    expect(state.updates[0].rows).toMatchObject({
+      status: "failed",
+      error: "db exploded",
+    })
   })
 
   it("无启用城市：返回 failed，firstError 记为 no active cities", async () => {
@@ -253,7 +288,10 @@ describe("runWeatherPipeline", () => {
     const summary = await runWeatherPipeline("manual")
 
     expect(summary.status).toBe("failed")
-    expect(state.updates[0].rows).toMatchObject({ status: "failed", error: "no active cities" })
+    expect(state.updates[0].rows).toMatchObject({
+      status: "failed",
+      error: "no active cities",
+    })
   })
 
   it("单源失败：partial 摘要只计失败格", async () => {
@@ -336,8 +374,12 @@ describe("runWeatherPipeline", () => {
     expect(summary.succeeded).toBe(0)
     expect(summary.errors.every((e) => e.error === "db")).toBe(true)
     // 实时行 upsert 已执行，每日表也尝试写入但因落库错误该格计 db
-    expect(state.upserts.filter((u) => u.table === "weather_current")).toHaveLength(2)
-    expect(state.upserts.filter((u) => u.table === "weather_daily")).toHaveLength(2)
+    expect(
+      state.upserts.filter((u) => u.table === "weather_current")
+    ).toHaveLength(2)
+    expect(
+      state.upserts.filter((u) => u.table === "weather_daily")
+    ).toHaveLength(2)
   })
 
   it("收尾清理失败仅记录日志，不影响运行终态", async () => {
@@ -419,7 +461,9 @@ describe("runWeatherBackfill", () => {
     expect(summary.totalCells).toBe(2)
 
     // 只写 weather_daily，不写实时表；窗口外的一天被过滤
-    expect(state.upserts.filter((u) => u.table === "weather_current")).toHaveLength(0)
+    expect(
+      state.upserts.filter((u) => u.table === "weather_current")
+    ).toHaveLength(0)
     const dailyRows = state.upserts.filter((u) => u.table === "weather_daily")
     expect(dailyRows).toHaveLength(4) // 2 provider × 2 窗口内天
     const days = new Set(
@@ -429,10 +473,15 @@ describe("runWeatherBackfill", () => {
 
     // temperature 取高低温均值占位；每日行 onConflict 城×源×日
     const row = dailyRows[0].rows as { temperature: number; high_temp: number }
-    expect(row.temperature).toBe((row.high_temp + (dailyRows[0].rows as { low_temp: number }).low_temp) / 2)
+    expect(row.temperature).toBe(
+      (row.high_temp + (dailyRows[0].rows as { low_temp: number }).low_temp) / 2
+    )
 
     // 运行登记为 running/manual，终态 success
-    expect(state.inserts[0].rows).toMatchObject({ status: "running", trigger: "manual" })
+    expect(state.inserts[0].rows).toMatchObject({
+      status: "running",
+      trigger: "manual",
+    })
     expect(state.updates[0].rows).toMatchObject({ status: "success" })
   })
 
@@ -458,7 +507,10 @@ describe("runWeatherBackfill", () => {
 
     expect(summary.status).toBe("failed")
     expect(summary.totalCells).toBe(0)
-    expect(state.updates[0].rows).toMatchObject({ status: "failed", error: "no active cities" })
+    expect(state.updates[0].rows).toMatchObject({
+      status: "failed",
+      error: "no active cities",
+    })
   })
 
   it("历史接口返回错误：该格计对应错误码", async () => {
@@ -467,7 +519,10 @@ describe("runWeatherBackfill", () => {
     const state = stubService()
     state.cities.data = [cityRow]
     providersMock.history[0].mockResolvedValue({ ok: false, error: "http" })
-    providersMock.history[1].mockResolvedValue({ ok: true, daily: historyDaily })
+    providersMock.history[1].mockResolvedValue({
+      ok: true,
+      daily: historyDaily,
+    })
 
     const summary = await runWeatherBackfill(7)
 
@@ -483,7 +538,10 @@ describe("runWeatherBackfill", () => {
     const state = stubService()
     state.cities.data = [cityRow]
     providersMock.history[0].mockRejectedValue(new Error("boom"))
-    providersMock.history[1].mockResolvedValue({ ok: true, daily: historyDaily })
+    providersMock.history[1].mockResolvedValue({
+      ok: true,
+      daily: historyDaily,
+    })
 
     const summary = await runWeatherBackfill(7)
 

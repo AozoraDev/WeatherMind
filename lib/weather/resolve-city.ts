@@ -8,13 +8,13 @@ import type { CityRow } from "./view-types"
 export async function resolveCityParam(
   cities: CityRow[],
   rawCity: string | undefined,
-  pathname: string,
+  pathname: string
 ): Promise<CityRow | null> {
   if (cities.length === 0) return null
 
   const selected =
     cities.find(
-      (c) => c.name_en.toLowerCase() === (rawCity ?? "").toLowerCase(),
+      (c) => c.name_en.toLowerCase() === (rawCity ?? "").toLowerCase()
     ) ??
     cities.find((c) => c.name_en.toLowerCase() === "tokyo") ??
     cities[0]
