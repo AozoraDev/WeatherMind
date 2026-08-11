@@ -230,6 +230,56 @@ describe("chatCompletionStream", () => {
     })
   })
 
+  it("JSON 降级 json() 抛错 → parse", async () => {
+    mockedResolve.mockResolvedValue([{ address: "1.2.3.4", family: 4 }])
+    mockedFetchStream.mockResolvedValue({
+      ok: true,
+      response: {
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => {
+          throw new Error("invalid body")
+        },
+      } as unknown as Response,
+    })
+    await expect(chatCompletionStream(CHAT_PARAMS)).resolves.toEqual({
+      ok: false,
+      error: "parse",
+    })
+  })
+
+  it("SSE 多工具调用按 index 排序后拼全（顺序错乱的工具调用）", async () => {
+    // index 1 先出、index 0 后出：done 前必须按 index 升序归并（杀 sort 突变）
+    mockedResolve.mockResolvedValue([{ address: "1.2.3.4", family: 4 }])
+    const frames = [
+      `data: ${JSON.stringify({
+        choices: [
+          { delta: { tool_calls: [{ index: 1, id: "c2", function: { name: "get_metric", arguments: '{"k":"v2"}' } }] } },
+        ],
+      })}\n\n`,
+      `data: ${JSON.stringify({
+        choices: [
+          { delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "query_source", arguments: '{"k":"v1"}' } }] } },
+        ],
+      })}\n\n`,
+      "data: [DONE]\n\n",
+    ]
+    mockedFetchStream.mockResolvedValue({
+      ok: true,
+      response: sseResponse(frames),
+    })
+    const res = await chatCompletionStream(CHAT_PARAMS)
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      const events = await collectEvents(res)
+      const done = events.at(-1) as Extract<ChatStreamEvent, { type: "done" }>
+      expect(done.toolCalls).toEqual([
+        { id: "c1", name: "query_source", arguments: '{"k":"v1"}' },
+        { id: "c2", name: "get_metric", arguments: '{"k":"v2"}' },
+      ])
+    }
+  })
+
+
   it("Content-Type 非流式也非 JSON → parse", async () => {
     mockedResolve.mockResolvedValue([{ address: "1.2.3.4", family: 4 }])
     mockedFetchStream.mockResolvedValue({

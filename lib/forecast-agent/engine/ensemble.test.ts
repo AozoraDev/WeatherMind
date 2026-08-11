@@ -591,6 +591,23 @@ describe("riskFlags", () => {
     ).toBe(true)
   })
 
+  it("pred 报 storm 但无源报 storm → count 兜底 0，不标雷暴", () => {
+    // count("storm") 的 Map 无该 key → ?? 0 兜底（杀条件源计数突变）
+    const inputs = [
+      src("open-meteo", 28, 22, 5, "clear"),
+      src("openweather", 28, 22, 5, "clear"),
+    ]
+    const pred = {
+      high: 28,
+      low: 22,
+      precip: 5,
+      poP: 30,
+      windBeaufort: 3,
+      condition: "storm" as const,
+    }
+    expect(riskFlags(inputs, pred).some((f) => f.type === "storm")).toBe(false)
+  })
+
   it("条件缺失源不计入一致源数", () => {
     // 一个 snow + 一个 null：count("snow")=1 < 2，不标
     const inputs = [
@@ -703,5 +720,25 @@ describe("predict 全链路", () => {
     expect(result.weights).toEqual(W)
     // detail 不得漏进 result.weights（提示词/卡片/落库都依赖它只含源权重）
     expect("detail" in result.weights).toBe(false)
+  })
+
+  it("权重表缺某源 → 该源权重按 0 计，不 NaN 且回填 0", () => {
+    // 只给 open-meteo 权重：openweather/weatherapi 走 ?? 0（杀权重兜底突变）
+    const inputs = [
+      src("open-meteo", 30, 20, 2, "clear"),
+      src("openweather", 32, 22, 2, "clear"),
+      src("weatherapi", 34, 24, 2, "clear"),
+    ]
+    const result = predict(
+      inputs,
+      { "open-meteo": 0.5 } as unknown as Record<WeatherSource, number>
+    )
+    expect(result.high).toBe(30)
+    expect(Number.isNaN(result.high)).toBe(false)
+    expect(result.weights).toEqual({
+      "open-meteo": 0.5,
+      openweather: 0,
+      weatherapi: 0,
+    })
   })
 })

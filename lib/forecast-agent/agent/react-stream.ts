@@ -66,12 +66,8 @@ export async function* runReActLoopStream(params: {
       return
     }
 
-    // 消费本步流：delta 累计 content；tool 按 index 累计工具调用
+    // 消费本步流：delta 累计 content（即时透传）；工具调用取 done 帧的完整 toolCalls
     const contentParts: string[] = []
-    const toolCallsByIndex = new Map<
-      number,
-      { id: string; name: string; arguments: string }
-    >()
     let stepToolCalls: ToolCall[] = []
 
     try {
@@ -81,16 +77,6 @@ export async function* runReActLoopStream(params: {
           // 即时透传增量：真流式靠这里逐块 yield，不能攒到步末一次性输出。
           // 工具步的 content（若有）即思考文字，也经此透传，步末随 rollback 从 Markdown 回滚
           yield { type: "delta", text: ev.text }
-        } else if (ev.type === "tool") {
-          const cur = toolCallsByIndex.get(ev.index) ?? {
-            id: "",
-            name: "",
-            arguments: "",
-          }
-          cur.id += ev.id
-          cur.name += ev.name
-          cur.arguments += ev.argumentsDelta
-          toolCallsByIndex.set(ev.index, cur)
         } else if (ev.type === "done") {
           stepToolCalls = ev.toolCalls
           usage = mergeUsage(usage, ev.usage)

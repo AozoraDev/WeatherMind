@@ -107,6 +107,25 @@ describe("isPrivateHost", () => {
     expect(isPrivateHost("2001:db8::1")).toBe(true) // 文档段
     expect(isPrivateHost("64:ff9b::102:304")).toBe(true) // NAT64
     expect(isPrivateHost("ff02::1")).toBe(true) // 多播
+    expect(isPrivateHost("2001:10::1")).toBe(true) // ORCHID 2001:10::/28
+    expect(isPrivateHost("100::")).toBe(true) // discard-only 100::/64
+  })
+
+  it("IPv4 映射尾部 255 段按公网放行（n>255 边界，非 >=）", () => {
+    // 段值校验用 n > 255 判非法，255 本身合法。1.255.0.1 映射后仍是公网；
+    // 若误用 >= 会把 255 判非法 → 解析失败归私网，测试应仍为 false 放行
+    expect(isPrivateHost("::ffff:1.255.0.1")).toBe(false)
+  })
+
+  it("方括号不配对 → 不作 IPv6 处理（按域名放行）", () => {
+    // 括号判定需同时满足前后配对（杀 && → || 或单项缺失突变）
+    expect(isPrivateHost("[::1")).toBe(false)
+    expect(isPrivateHost("::1]")).toBe(false)
+  })
+
+  it("单 :: 恰好展开一位（missing=1）的公共 IPv6 放行", () => {
+    // 3 组前缀 + 4 组后缀，missing=1：展开一位后仍 8 组，合法公网放行（杀 missing<=1 边界突变）
+    expect(isPrivateHost("2001:4860:4860::4860:4860:4860:4860")).toBe(false)
   })
 })
 

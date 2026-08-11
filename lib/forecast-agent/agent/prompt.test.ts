@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 
-import { buildForecastAgentMessages } from "./prompt"
-import type { PredictionResult } from "@/lib/schemas/forecast-agent"
+import { METRICS, type PredictionResult } from "@/lib/schemas/forecast-agent"
+
+import { buildForecastAgentMessages, formatMetricValue } from "./prompt"
 
 // 提示词按语言输出：英文模式下指标表/风险行/分歧块必须全英文，
 // 否则模型看到中文数据表会顺着输出中文（summary/points 语言跑偏）。
@@ -83,6 +84,18 @@ const RESULT_TEMP: PredictionResult = {
 }
 
 const CITY = { nameJa: "東京", nameEn: "Tokyo" }
+
+describe("formatMetricValue", () => {
+  it("未知 metricId → 空串（不抛错兜底）", () => {
+    expect(formatMetricValue("zh", RESULT, "not_a_metric")).toBe("")
+  })
+
+  it("数值型指标按口径格式化", () => {
+    expect(formatMetricValue("zh", RESULT, METRICS.high)).toBe("33.5°C")
+    expect(formatMetricValue("zh", RESULT, METRICS.poP)).toBe("10%")
+    expect(formatMetricValue("zh", RESULT, METRICS.wind)).toBe("3 级")
+  })
+})
 
 describe("buildForecastAgentMessages", () => {
   it("英文模式：指标表/风险行全英文，不含中文标签；降水分歧块注入强制核对指令", () => {

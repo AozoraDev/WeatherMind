@@ -176,6 +176,11 @@ describe("runReActLoopStream", () => {
     expect(onTrace).toHaveBeenCalledTimes(1)
     // 第二轮请求携带回传的 assistant+tool 消息（杀 history.push 突变）
     const secondMessages = mockedChatStream.mock.calls[1][0].messages
+    expect(secondMessages.at(-2)).toEqual({
+      role: "assistant",
+      content: null,
+      tool_calls: [TOOL_CALL],
+    })
     expect(secondMessages.at(-1)).toEqual({
       role: "tool",
       tool_call_id: "c1",
@@ -222,7 +227,164 @@ describe("runReActLoopStream", () => {
   })
 
   it("provider 失败 → result 透传错误码", async () => {
-    mockedChatStream.mockResolvedValueOnce({ ok: false, error: "network" })
+    // 用非 network 错误码：失败块直接 yield 透传，而非误入断流 catch 兜成 network（杀块删除/条件翻转变异）
+    mockedChatStream.mockResolvedValueOnce({ ok: false, error: "http" })
+    const events = await consume(
+      runReActLoopStream({ model: MODEL, messages: INITIAL, tools: TOOLS })
+    )
+    expect(events).toEqual([
+      { type: "result", result: { ok: false, error: "http" } },
+    ])
+    // 失败即止：不得进入下一轮循环（杀「跳过失败块继续循环」突变）
+    expect(mockedChatStream).toHaveBeenCalledTimes(1)
+  })
+
+  it("单工具轮不 sleep（即时完成，无间隔等待）", async () => {
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout")
+    mockedChatStream
+      .mockResolvedValueOnce({
+        ok: true,
+        events: streamOf([
+          { type: "done", content: null, toolCalls: [TOOL_CALL], usage: null },
+        ]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        events: streamOf([
+          { type: "delta", text: "晴。" },
+          { type: "done", content: "晴。", toolCalls: [], usage: null },
+        ]),
+      })
+    await consume(
+      runReActLoopStream({ model: MODEL, messages: INITIAL, tools: TOOLS })
+    )
+    // 单工具即时完成；末工具后也不 sleep（杀 i >= actions.length - 1 边界突变）
+    expect(timeoutSpy).not.toHaveBeenCalled()
+    timeoutSpy.mockRestore()
+  })
+
+  it("工具定义映射（name/description/parameters）与初始消息透传", async () => {
+    // 断言传给上游的 tools 是「裁剪后的 ChatTool 定义」而非含 execute 的 ReactTool
+    mockedChatStream.mockResolvedValueOnce({
+      ok: true,
+      events: streamOf([
+        { type: "delta", text: "晴。" },
+        { type: "done", content: "晴。", toolCalls: [], usage: null },
+      ]),
+    })
+    await consume(
+      runReActLoopStream({ model: MODEL, messages: INITIAL, tools: TOOLS })
+    )
+    const { tools, messages } = mockedChatStream.mock.calls[0][0]
+    expect(tools).toEqual([
+      {
+        name: "query_source",
+        description: "query a source snapshot",
+        parameters: { type: "object" },
+      },
+    ])
+    // 历史以初始消息起步，不得被清空（杀 [...messages] 空数组突变）
+    expect(messages).toEqual(INITIAL)
+  })
+
+  it("多工具轮逐个间隔展示：仅在非末工具间 sleep 一次", async () => {
+    // 2 个工具调用：真实执行即时完成，故意留 400ms 间隔让推理卡逐条出现
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout")
+    mockedChatStream
+      .mockResolvedValueOnce({
+        ok: true,
+        events: streamOf([
+          {
+            type: "done",
+            content: null,
+            toolCalls: [
+              TOOL_CALL,
+              {
+                id: "c2",
+                name: "query_source",
+                arguments: '{"source":"weatherapi"}',
+              },
+            ],
+            usage: null,
+          },
+        ]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        events: streamOf([
+          { type: "delta", text: "晴。" },
+          { type: "done", content: "晴。", toolCalls: [], usage: null },
+        ]),
+      })
+    await consume(
+      runReActLoopStream({ model: MODEL, messages: INITIAL, tools: TOOLS })
+    )
+    // 2 个工具 → 只在中间 sleep 一次；末工具后不 sleep（杀条件/边界/长度突变）
+    expect(timeoutSpy).toHaveBeenCalledTimes(1)
+    expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 400)
+    timeoutSpy.mockRestore()
+  })
+
+  it("流只有 delta 无 done 帧 → 按最终步拼 content 出结果", async () => {
+    // 上游异常流（无 done 边界）：stepToolCalls 保持空数组 → 走最终步而非工具轮
+    mockedChatStream.mockResolvedValueOnce({
+      ok: true,
+      events: streamOf([{ type: "delta", text: "晴。" }]),
+    })
+    const events = await consume(
+      runReActLoopStream({ model: MODEL, messages: INITIAL, tools: TOOLS })
+    )
+    expect(events).toEqual([
+      { type: "delta", text: "晴。" },
+      {
+        type: "result",
+        result: { ok: true, content: "晴。", usage: null, trace: [] },
+      },
+    ])
+  })
+
+  it("工具调用按 index 流式累积（tool 事件逐帧到达）后进入工具轮", async () => {
+    // 上游逐帧下推工具增量（累积在 chat-stream 侧完成）；本层忽略中间帧，
+    // 以 done 帧的完整 toolCalls 驱动工具轮——验证碎片帧不破坏循环
+    mockedChatStream
+      .mockResolvedValueOnce({
+        ok: true,
+        events: streamOf([
+          { type: "tool", index: 0, id: "c", name: "query_s", argumentsDelta: '{"source":' },
+          { type: "tool", index: 0, id: "1", name: "ource", argumentsDelta: '"openweather"}' },
+          { type: "done", content: null, toolCalls: [TOOL_CALL], usage: null },
+        ]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        events: streamOf([
+          { type: "delta", text: "晴。" },
+          { type: "done", content: "晴。", toolCalls: [], usage: null },
+        ]),
+      })
+    const events = await consume(
+      runReActLoopStream({ model: MODEL, messages: INITIAL, tools: TOOLS })
+    )
+    expect(events.filter((e) => e.type === "tool")).toEqual([
+      {
+        type: "tool",
+        name: "query_source",
+        args: TOOL_CALL.arguments,
+        result: '{"got":{"source":"openweather"}}',
+      },
+    ])
+  })
+
+  it("上游流中途断开（next 抛错）→ network", async () => {
+    // 生成器首帧即抛错：for-await 进 catch 分支，归 network
+    async function* brokenStream(): AsyncGenerator<ChatStreamEvent> {
+      throw new Error("socket hang up")
+      yield { type: "done", content: null, toolCalls: [], usage: null }
+    }
+    mockedChatStream.mockResolvedValueOnce({
+      ok: true,
+      events: brokenStream(),
+    })
     const events = await consume(
       runReActLoopStream({ model: MODEL, messages: INITIAL, tools: TOOLS })
     )

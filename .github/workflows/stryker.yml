@@ -65,12 +65,14 @@ jobs:
                   isTested(f)
               )
             core.setOutput('mode', sources.length === 0 ? 'skip' : 'scoped')
-            core.setOutput('args', sources.map((f) => `--mutate "${f}"`).join(' '))
+            // stryker CLI 的 --mutate 按逗号 split 且重复 flag 后者覆盖前者，
+            // 必须拼成单个逗号串，否则只变异最后一个文件，前面的变更文件全部漏检
+            core.setOutput('args', sources.join(','))
             core.setOutput('fileCount', String(sources.length))
 
       - name: Run mutation tests (changed files)
         if: steps.scope.outputs.mode == 'scoped'
-        run: pnpm test:stryker ${{ steps.scope.outputs.args }}
+        run: pnpm test:stryker --mutate "${{ steps.scope.outputs.args }}"
 
       - name: Skip mutation tests
         if: steps.scope.outputs.mode == 'skip'

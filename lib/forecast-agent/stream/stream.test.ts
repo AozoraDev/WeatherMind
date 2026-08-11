@@ -226,7 +226,12 @@ describe("runForecastAgentStream", () => {
       yield { type: "delta", text: VALID_MD.slice("## 推理过程\n".length) }
       yield {
         type: "result",
-        result: { ok: true, content: VALID_MD, usage: null, trace: [] },
+        result: {
+          ok: true,
+          content: VALID_MD,
+          usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18 },
+          trace: [],
+        },
       }
     })
 
@@ -304,7 +309,12 @@ describe("runForecastAgentStream", () => {
       predicted_low: expect.any(Number),
       react_trace: [],
       error_code: null,
+      // usage 落库（杀 ?? null 被 && null 兜掉的突变）
+      prompt_tokens: 11,
+      completion_tokens: 7,
     })
+    // 透传给 ReAct 的模型参数与 usage 读取自 loopResult（杀对象字面量 {} 突变）
+    expect(mockedReActStream.mock.calls[0][0].model).toEqual(MODEL)
 
     // done 事件带 success 行
     const done = events.find(
@@ -416,6 +426,119 @@ describe("runForecastAgentStream", () => {
     expect(typeof update.failed_at).toBe("string")
   })
 
+  it("settle 成功落库失败 → rollback 删除 pending 行并报 generic", async () => {
+    mockedReActStream.mockImplementation(async function* () {
+      yield { type: "delta", text: VALID_MD }
+      yield {
+        type: "result",
+        result: { ok: true, content: VALID_MD, usage: null, trace: [] },
+      }
+    })
+    const handler = async (table: string, first: string) => {
+      if (table === "cities") return { data: CITY, error: null }
+      if (table === "weather_daily") return { data: DAILY_TWO, error: null }
+      if (table === "weather_current") return { data: CURRENT_TWO, error: null }
+      if (table === "forecast_agent_predictions") {
+        if (first === "insert")
+          return { data: { id: "row-1", status: "pending" }, error: null }
+        if (first === "update")
+          return { data: null, error: { message: "db down" } }
+        if (first === "delete") return { data: null, error: null }
+        return { data: null, error: null }
+      }
+      return { data: [], error: null }
+    }
+    const session = fakeSupabase(handler)
+    const service = fakeSupabase(handler)
+
+    const events = await consumeStream(
+      runForecastAgentStream(session as never, service as never, PARAMS)
+    )
+    expect(events.at(-1)).toEqual({ type: "error", code: "generic" })
+    // rollback 兜底删除未落库的 pending 行
+    expect(service.calls).toContainEqual({
+      table: "forecast_agent_predictions",
+      method: "delete",
+      args: [],
+    })
+  })
+
+  it("集成阶段未预期异常 → generic 兜底 + finally 清理", async () => {
+    // computeWeights 抛错：走外层 catch → error generic
+    mockedWeights.mockRejectedValue(new Error("boom"))
+    const handler = async (table: string, first: string) => {
+      if (table === "cities") return { data: CITY, error: null }
+      if (table === "weather_daily") return { data: DAILY_TWO, error: null }
+      if (table === "weather_current") return { data: CURRENT_TWO, error: null }
+      if (table === "forecast_agent_predictions") {
+        if (first === "insert")
+          return { data: { id: "row-1", status: "pending" }, error: null }
+        if (first === "delete") return { data: null, error: null }
+        return { data: null, error: null }
+      }
+      return { data: [], error: null }
+    }
+    const session = fakeSupabase(handler)
+    const service = fakeSupabase(handler)
+
+    const events = await consumeStream(
+      runForecastAgentStream(session as never, service as never, PARAMS)
+    )
+    expect(events.at(-1)).toEqual({ type: "error", code: "generic" })
+    expect(mockedReActStream).not.toHaveBeenCalled()
+    // 已认领但未落库 → finally 删除 pending 行
+    expect(service.calls).toContainEqual({
+      table: "forecast_agent_predictions",
+      method: "delete",
+      args: [],
+    })
+  })
+
+  it("客户端断开且清理删除失败 → 兜底 settle 为 failed", async () => {
+    mockedReActStream.mockImplementation(async function* () {
+      yield { type: "delta", text: "## 推理过程\n" }
+      yield {
+        type: "result",
+        result: { ok: true, content: VALID_MD, usage: null, trace: [] },
+      }
+    })
+    const handler = async (table: string, first: string) => {
+      if (table === "cities") return { data: CITY, error: null }
+      if (table === "weather_daily") return { data: DAILY_TWO, error: null }
+      if (table === "weather_current") return { data: CURRENT_TWO, error: null }
+      if (table === "forecast_agent_predictions") {
+        if (first === "insert")
+          return { data: { id: "row-1", status: "pending" }, error: null }
+        if (first === "delete")
+          return { data: null, error: { message: "fk" } }
+        if (first === "update") return { data: null, error: null }
+        return { data: null, error: null }
+      }
+      return { data: [], error: null }
+    }
+    const session = fakeSupabase(handler)
+    const service = fakeSupabase(handler)
+
+    const gen = runForecastAgentStream(
+      session as never,
+      service as never,
+      PARAMS
+    )
+    let sawDelta = false
+    for (let i = 0; i < 12 && !sawDelta; i++) {
+      const { value } = await gen.next()
+      if (value?.type === "delta") sawDelta = true
+    }
+    expect(sawDelta).toBe(true)
+    await gen.return(undefined)
+
+    // 删除失败 → settleRow 改为 failed（可重试），而非卡死 pending
+    const update = service.calls.find(
+      (c) => c.method === "update"
+    )?.args[0] as Record<string, unknown>
+    expect(update).toMatchObject({ status: "failed", error_code: "generic" })
+  })
+
   it("城市不存在 → generic", async () => {
     const session = fakeSupabase(async () => ({ data: null, error: null }))
     const service = fakeSupabase(async () => ({ data: null, error: null }))
@@ -427,6 +550,51 @@ describe("runForecastAgentStream", () => {
       { type: "status", phase: "start" },
       { type: "error", code: "generic" },
     ])
+  })
+
+  it("城市查询参数：cities 表 / select * / eq id / is_active true", async () => {
+    // 当日按城市时区定日的前提是查出活跃城市；断言查询参数杀表名/列名/布尔突变
+    const handler = async (table: string) => {
+      if (table === "cities") return { data: CITY, error: null }
+      if (table === "forecast_agent_predictions")
+        return { data: null, error: null }
+      return { data: [], error: null }
+    }
+    const session = fakeSupabase(handler)
+    const service = fakeSupabase(handler)
+    await consumeStream(
+      runForecastAgentStream(session as never, service as never, PARAMS)
+    )
+    expect(session.calls).toContainEqual({
+      table: "cities",
+      method: "select",
+      args: ["*"],
+    })
+    expect(session.calls).toContainEqual({
+      table: "cities",
+      method: "eq",
+      args: ["id", "city-1"],
+    })
+    expect(session.calls).toContainEqual({
+      table: "cities",
+      method: "eq",
+      args: ["is_active", true],
+    })
+  })
+
+  it("调用前已断开（signal.aborted）→ 不发起任何查询/生成，直接 generic", async () => {
+    const session = fakeSupabase(async () => ({ data: null, error: null }))
+    const service = fakeSupabase(async () => ({ data: null, error: null }))
+    const events = await consumeStream(
+      runForecastAgentStream(session as never, service as never, {
+        ...PARAMS,
+        signal: { aborted: true } as unknown as AbortSignal,
+      })
+    )
+    expect(events).toEqual([{ type: "error", code: "generic" }])
+    expect(mockedReActStream).not.toHaveBeenCalled()
+    // 断线即止，不碰城市表
+    expect(session.calls.filter((c) => c.table === "cities")).toHaveLength(0)
   })
 
   it("客户端断开（生成器被 return）→ finally 兜底删除未落库的 pending 行", async () => {
