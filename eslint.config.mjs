@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // 覆盖率产物（Vitest 生成）不入 lint
     "coverage/**",
+    // Stryker 沙箱副本（变异测试生成）不入 lint
+    ".stryker-tmp/**",
   ]),
 ]);
 

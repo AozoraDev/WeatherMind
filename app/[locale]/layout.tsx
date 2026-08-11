@@ -4,6 +4,7 @@ import { getMessages, getTranslations } from "next-intl/server"
 
 import { QueryProvider } from "@/components/providers/query-provider"
 import { ToastProvider } from "@/components/ui-preset/toast"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import "../globals.css"
 import { routing } from "@/i18n/routing"
 import { cn } from "@/lib/utils"
@@ -56,7 +57,9 @@ export default async function LocaleLayout({
         {/* 注入翻译消息与查询上下文，供客户端组件使用 useTranslations / useMutation */}
         <NextIntlClientProvider messages={messages}>
           <QueryProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <TooltipProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </TooltipProvider>
           </QueryProvider>
         </NextIntlClientProvider>
       </body>

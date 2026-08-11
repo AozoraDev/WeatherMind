@@ -14,7 +14,7 @@ description: 写表单前必调——TanStack Query + TanStack Form + Zod。范�
 ## 接线
 - 一份 schema 前后端共用，放 `lib/schemas/`；类型 `z.infer` 推导，不另写 interface
 - schema 传 `useForm` 的 `validators`，由表单校验，不手写 if/else
-- 提交：`onSubmit` 调 `useMutation`，`isPending`/`isError` 控制按钮与提示
+- 提交：`onSubmit` 调 `useMutation`，`isPending`/`isError` 控按钮与提示
 - 回填：`useQuery` data 映射 `defaultValues`，`isLoading` 兜底
 
 ## 关联

@@ -16,7 +16,14 @@ export default defineConfig({
       reportsDirectory: "./coverage",
       // 只统计 lib/ 与 supabase/ 下的业务逻辑；生成/配置类文件排除，保证数字真实
       include: ["lib/**", "supabase/**"],
-      exclude: ["**/*.test.*", "**/*.d.ts", "**/*.config.*", "**/*.sql"],
+      // 测试共享夹具（fakeSupabase 等）不属于被测业务，不计入覆盖率
+      exclude: [
+        "**/*.test.*",
+        "**/*.d.ts",
+        "**/*.config.*",
+        "**/*.sql",
+        "**/test-utils.ts",
+      ],
     },
   },
   resolve: {

@@ -75,7 +75,9 @@ export function LogsView({ runs }: { runs: RunRow[] }) {
               {t(`status.${run.status}`)}
             </span>
           </TableCell>
-          <TableCell className={CELL_CLASS}>{t(`trigger.${run.trigger}`)}</TableCell>
+          <TableCell className={CELL_CLASS}>
+            {t(`trigger.${run.trigger}`)}
+          </TableCell>
           <TableCell
             className={cn(
               CELL_CLASS,

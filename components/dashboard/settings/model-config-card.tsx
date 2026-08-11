@@ -57,7 +57,9 @@ function ConfigField({
 
   // TanStack Form 的 zod issue message 是 i18n key，逐条翻译展示；兼容 string 错误
   const messages = errors
-    .map((e) => (typeof e === "string" ? e : (e as { message?: string }).message))
+    .map((e) =>
+      typeof e === "string" ? e : (e as { message?: string }).message
+    )
     .filter((m): m is string => Boolean(m))
 
   return (
@@ -100,7 +102,13 @@ export function ModelConfigCard({ email }: { email: string }) {
 
   // 测试链接：调 /models 拉模型列表；成功进 mutation.data，驱动下拉与「确定」
   const testMutation = useMutation({
-    mutationFn: async ({ baseUrl, apiKey }: { baseUrl: string; apiKey: string }) => {
+    mutationFn: async ({
+      baseUrl,
+      apiKey,
+    }: {
+      baseUrl: string
+      apiKey: string
+    }) => {
       const res = await loadModels(baseUrl, apiKey)
       if (!res.ok) throw new ModelConfigError(res.error)
       return res.models
@@ -108,7 +116,9 @@ export function ModelConfigCard({ email }: { email: string }) {
     onSuccess: () => toast.success(t("success.tested")),
     onError: (e) =>
       toast.error(
-        e instanceof ModelConfigError ? t(`errors.${e.code}`) : t("errors.generic")
+        e instanceof ModelConfigError
+          ? t(`errors.${e.code}`)
+          : t("errors.generic")
       ),
   })
 
@@ -129,7 +139,10 @@ export function ModelConfigCard({ email }: { email: string }) {
     defaultValues: { baseUrl: "", apiKey: "", model: "" },
     validators: { onSubmit: modelConfigSchema },
     onSubmit: async ({ value }) => {
-      await saveMutation.mutateAsync({ ...value, models: testMutation.data ?? [] })
+      await saveMutation.mutateAsync({
+        ...value,
+        models: testMutation.data ?? [],
+      })
     },
   })
 
@@ -149,7 +162,10 @@ export function ModelConfigCard({ email }: { email: string }) {
         <CardTitle>{t("title")}</CardTitle>
         <CardDescription>{t("desc")}</CardDescription>
         <CardAction>
-          <ButtonGreen size="sm" onClick={config ? handleClear : () => setOpen(true)}>
+          <ButtonGreen
+            size="sm"
+            onClick={config ? handleClear : () => setOpen(true)}
+          >
             {config ? t("clear") : t("configure")}
           </ButtonGreen>
         </CardAction>
@@ -259,10 +275,14 @@ export function ModelConfigCard({ email }: { email: string }) {
                             <Label htmlFor={field.name}>{t("model")}</Label>
                             <Select
                               value={field.state.value}
-                              onValueChange={(v) => v && field.handleChange(String(v))}
+                              onValueChange={(v) =>
+                                v && field.handleChange(String(v))
+                              }
                             >
                               <SelectTrigger className="w-full">
-                                <SelectValue placeholder={t("selectPlaceholder")} />
+                                <SelectValue
+                                  placeholder={t("selectPlaceholder")}
+                                />
                               </SelectTrigger>
                               <SelectContent>
                                 {models.map((m) => (

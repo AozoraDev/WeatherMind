@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest"
 
-import { formatWeatherNumber } from "./utils"
+import { cn, formatWeatherNumber } from "./utils"
+
+// cn：clsx 合并 + tailwind-merge 去冲突（shadcn 通用工具）
+describe("cn", () => {
+  it("合并条件类名并过滤假值", () => {
+    expect(cn("a", false && "b", undefined, "c")).toBe("a c")
+  })
+
+  it("后类覆盖冲突类（tailwind-merge）", () => {
+    expect(cn("px-2", "px-4")).toBe("px-4")
+  })
+})
 
 // 天气数值统一展示口径：默认一位小数；非零微量（一位小数会成 0.0）降级两位小数还原真实值
 describe("formatWeatherNumber", () => {

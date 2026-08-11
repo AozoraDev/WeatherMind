@@ -54,10 +54,10 @@ export async function registerSendCodeAction(
   // 已注册邮箱不发验证码，直接返回专用错误码让客户端弹 toast
   if (opts?.checkExists) {
     try {
-      const { data: exists, error: checkError } = await createServiceClient().rpc(
-        "is_email_registered",
-        { p_email: parsed.data.email }
-      )
+      const { data: exists, error: checkError } =
+        await createServiceClient().rpc("is_email_registered", {
+          p_email: parsed.data.email,
+        })
       if (checkError) return { ok: false, error: mapAuthError(checkError) }
       if (exists) return { ok: false, error: "userExists" }
     } catch {

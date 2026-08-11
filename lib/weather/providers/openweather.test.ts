@@ -172,10 +172,11 @@ describe("openWeather 适配器", () => {
   })
 
   it("forecast 解析失败返回 parse", async () => {
-    vi.mocked(fetch).mockImplementation(async (input) =>
-      String(input).includes("/weather")
-        ? jsonResponse(currentPayload)
-        : jsonResponse({ list: [{ dt: "x" }] }) // 缺 main 字段触发 schema 失败
+    vi.mocked(fetch).mockImplementation(
+      async (input) =>
+        String(input).includes("/weather")
+          ? jsonResponse(currentPayload)
+          : jsonResponse({ list: [{ dt: "x" }] }) // 缺 main 字段触发 schema 失败
     )
     const result = await openWeather.fetchCurrentAndForecast(city)
     expect(result).toEqual({ ok: false, error: "parse" })

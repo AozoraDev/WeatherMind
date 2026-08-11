@@ -1,12 +1,7 @@
 import type { WeatherSource } from "@/lib/schemas/weather"
 import type { CityRow, CurrentRow } from "@/lib/weather/view-types"
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn, formatWeatherNumber } from "@/lib/utils"
 
 // 三个数据源在卡片内各自的平台名配色（浅色模式下可读），与历史表格平台列保持同套配色
@@ -29,6 +24,8 @@ type WeatherCityCardProps = {
   cells: Record<WeatherSource, CurrentRow | null>
   // i18n 文案由调用方注入，保持预设不感知 next-intl
   sourceLabels: Record<WeatherSource, string>
+  // 归一分类 → 本地化天气文案；合法分类走它，否则回退源自带 condition_label
+  conditionLabels: Record<string, string>
   humidityLabel: string
   windLabel: string
   noDataLabel: string
@@ -40,6 +37,7 @@ export function WeatherCityCard({
   city,
   cells,
   sourceLabels,
+  conditionLabels,
   humidityLabel,
   windLabel,
   noDataLabel,
@@ -88,7 +86,11 @@ export function WeatherCityCard({
                   <div className="min-w-0">
                     {name}
                     <p className="truncate text-xs text-muted-foreground">
-                      {cell.condition_label ?? "—"}
+                      {cell.condition_category
+                        ? (conditionLabels[cell.condition_category] ??
+                          cell.condition_label ??
+                          "—")
+                        : (cell.condition_label ?? "—")}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">

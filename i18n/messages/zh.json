@@ -168,6 +168,124 @@
       "errors": {
         "unauthorized": "请先登录",
         "generic": "刷新失败，请稍后再试"
+      },
+      "forecastAgent": {
+        "title": "当日预报",
+        "localDay": "本地日",
+        "reasoningTitle": "AI 推理过程",
+        "toolArgsLabel": "参数",
+        "toolResultLabel": "观察结果",
+        "desc": "基于三源预报的确定性集成预测与 AI 解读",
+        "generate": "预报当日",
+        "generating": "生成中…",
+        "noModelTooltip": "配置 AI 模型后可用",
+        "generateTooltip": "一键生成当日预测卡片",
+        "empty": "点击「预报当日」生成当日预测",
+        "pending": "预测生成中，请稍候…",
+        "failed": "预测生成失败",
+        "derivation": "演算过程",
+        "derivationHint": "固定模板指标，全部由代码计算、可复现",
+        "weightsLabel": "各源权重",
+        "formulaLabel": "公式版本",
+        "modelLabel": "模型",
+        "tokensLabel": "Token 消耗",
+        "tokensInOut": "（输入 {prompt} · 输出 {output}）",
+        "summaryLabel": "总览",
+        "pointsLabel": "解读要点",
+        "adviceLabel": "行动建议",
+        "duplicate": "今日已生成过，直接展示已有结果",
+        "phase": {
+          "start": "开始",
+          "read": "读取记录",
+          "claim": "认领任务",
+          "ensemble": "集成计算",
+          "agent": "AI 推理",
+          "validate": "校验结果",
+          "settle": "保存结果"
+        },
+        "riskNone": "无",
+        "units": {
+          "wind": "级"
+        },
+        "metrics": {
+          "high": { "label": "预测高温", "hint": "三源加权均值" },
+          "low": { "label": "预测低温", "hint": "三源加权均值" },
+          "highInterval": {
+            "label": "高温区间",
+            "hint": "均值 ± 1.28σ（约 80% 置信）"
+          },
+          "lowInterval": {
+            "label": "低温区间",
+            "hint": "均值 ± 1.28σ（约 80% 置信）"
+          },
+          "poP": { "label": "降水概率", "hint": "报雨源权重之和" },
+          "precipLevel": { "label": "降水等级", "hint": "按加权降水均值分级" },
+          "condition": { "label": "天气状况", "hint": "加权多数投票" },
+          "wind": { "label": "风力", "hint": "加权风速→蒲福风级" },
+          "humidity": { "label": "湿度", "hint": "加权平均" },
+          "confidence": {
+            "label": "可信度",
+            "hint": "源间一致强度（不依赖历史真值）"
+          },
+          "risk": { "label": "风险标记", "hint": "阈值 + 多源一致" }
+        },
+        "metricBadge": {
+          "high": "高温",
+          "low": "低温",
+          "highInterval": "高温区间",
+          "lowInterval": "低温区间",
+          "poP": "降水概率",
+          "precipLevel": "降水等级",
+          "condition": "天气",
+          "wind": "风力",
+          "humidity": "湿度",
+          "confidence": "可信度",
+          "risk": "风险"
+        },
+        "confidence": {
+          "high": "高",
+          "medium": "中",
+          "low": "低"
+        },
+        "precipLevel": {
+          "none": "无降水",
+          "light": "小雨",
+          "moderate": "中雨",
+          "heavy": "大雨"
+        },
+        "condition": {
+          "clear": "晴",
+          "partlyCloudy": "多云间晴",
+          "cloudy": "阴",
+          "fog": "雾",
+          "rain": "雨",
+          "snow": "雪",
+          "storm": "雷暴",
+          "other": "其他"
+        },
+        "riskType": {
+          "heat": "高温",
+          "cold": "低温",
+          "heavyRain": "强降水",
+          "wind": "大风",
+          "storm": "雷暴",
+          "snow": "降雪",
+          "diurnal": "昼夜温差"
+        },
+        "riskLevel": {
+          "info": "提醒",
+          "warning": "注意"
+        },
+        "error": {
+          "no-model": "请先在设置中配置 AI 模型",
+          "retry-cooldown": "生成失败，请 5 分钟后再试",
+          "insufficient-data": "当日数据源不足，暂无法生成",
+          "provider": "AI 服务调用失败，请稍后再试",
+          "parse": "AI 返回内容无法解析",
+          "consistency": "AI 解读未通过一致性校验",
+          "react-loop": "AI 未在限定步数内给出结论，请重试",
+          "generic": "生成失败，请稍后再试"
+        }
       }
     },
     "history": {

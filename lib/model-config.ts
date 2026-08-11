@@ -6,7 +6,9 @@ import { fetchJson } from "@/lib/weather/http"
 // AI 模型配置：按邮箱隔离存 localStorage，退出登录由客户端清除（见 logout-button）。
 // 所有读写带 SSR 守卫——预渲染时 window 未定义，静默降级为「未配置」。
 
-export type ModelConfig = z.infer<typeof modelConfigSchema> & { models: string[] }
+export type ModelConfig = z.infer<typeof modelConfigSchema> & {
+  models: string[]
+}
 
 // 客户端测试/保存动作的错误码：mutationFn 抛 ModelConfigError 供 i18n 取文案
 export type ModelConfigErrorCode = "network" | "http" | "parse"
@@ -94,8 +96,7 @@ export function buildModelsUrl(baseUrl: string): string {
 }
 
 export type LoadModelsResult =
-  | { ok: true; models: string[] }
-  | { ok: false; error: ModelConfigErrorCode }
+  { ok: true; models: string[] } | { ok: false; error: ModelConfigErrorCode }
 
 // 调 OpenAI 兼容 /models：走统一 fetchJson 封装，失败/格式异常归对应错误码，绝不抛错
 export async function loadModels(

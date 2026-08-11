@@ -29,7 +29,11 @@ export default async function ForecastPage({
 
   const cities = (citiesRes.data ?? []) as CityRow[]
   // 先解析出唯一城市（内部可能重定向补齐参数），再按 city_id 取单城当前天气
-  const selected = await resolveCityParam(cities, rawCity, "/dashboard/forecast")
+  const selected = await resolveCityParam(
+    cities,
+    rawCity,
+    "/dashboard/forecast"
+  )
   const currentRes = selected
     ? await supabase
         .from("weather_current")
@@ -37,7 +41,6 @@ export default async function ForecastPage({
         .eq("city_id", selected.id)
         .order("updated_at", { ascending: false })
     : null
-
   return (
     <div className="flex h-full flex-col gap-6 p-6">
       <div>
@@ -50,6 +53,7 @@ export default async function ForecastPage({
         currents={(currentRes?.data ?? []) as CurrentRow[]}
         latestRun={(runRes.data?.[0] ?? null) as RunRow | null}
         isAdmin={isAdminEmail(userRes.data.user?.email)}
+        email={userRes.data.user?.email ?? ""}
       />
     </div>
   )
