@@ -119,15 +119,15 @@ export function buildForecastCardMessages(
   }[] = []
   const data: Record<string, string> = {}
 
+  // value 必非空：各调用点已在前置 if (m.x != null) 守卫内，签名用 string 让 TS 编译期强制
   const pushTile = (
     key: string,
     icon: string,
     chip: string,
     label: string,
-    value: string | null | undefined,
+    value: string,
     sub?: string
   ) => {
-    if (value === null || value === undefined || value === "") return
     data[key] = value
     if (sub) data[`${key}Interval`] = sub
     tiles.push({ key, icon, chip, label, ...(sub ? { sub } : {}) })

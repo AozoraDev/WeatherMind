@@ -385,10 +385,10 @@ describe("runSupervisedStream", () => {
         const tool = params.tools.find((t) => t.name === "delegate_noUsage")!
         const obs = await tool.execute({})
         yield { type: "tool", name: "delegate_noUsage", args: "{}", result: obs }
-        yield { type: "result", result: { ok: true, content: "final", trace: [] } }
+        yield { type: "result", result: { ok: true, content: "final", usage: null, trace: [] } }
         return
       }
-      yield { type: "result", result: { ok: true, content: "expert content", trace: [] } }
+      yield { type: "result", result: { ok: true, content: "expert content", usage: null, trace: [] } }
     })
     const noUsage: SpecialistAgent<TestCtx> = {
       agentId: "noUsage",
