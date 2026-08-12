@@ -43,6 +43,14 @@ describe("fetchPage", () => {
     expect(res.totalPages).toBe(1)
   })
 
+  it("data 为 null（Supabase 空返回）→ 行集为空数组，总数取 count", async () => {
+    const { query } = stubQuery(null as unknown as unknown[], 25)
+    const res = await fetchPage<{ id: number }>(query, 1, 10)
+    expect(res.rows).toEqual([])
+    expect(res.total).toBe(25)
+    expect(res.totalPages).toBe(3)
+  })
+
   it("range 报错时抛出", async () => {
     const { query } = stubQuery([], null, { message: "boom" })
     await expect(fetchPage(query, 1, 10)).rejects.toThrow("boom")

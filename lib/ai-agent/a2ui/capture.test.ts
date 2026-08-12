@@ -74,6 +74,52 @@ describe("reduceToolEvent query_city 名称收集", () => {
     expect(acc.cityNames.c1).toBe("Shanghai")
   })
 
+  it("en 首选 name_en 缺失时回退 name_ja", () => {
+    const acc = createForecastCardAccumulator()
+    reduceToolEvent(
+      acc,
+      { name: "query_city", result: citiesJson([{ id: "c1", name_ja: "大阪", name_en: "" }]) },
+      "en"
+    )
+    expect(acc.cityNames.c1).toBe("大阪")
+  })
+
+  it("中英名均为空 → 不记名（留给标题兜底）", () => {
+    const acc = createForecastCardAccumulator()
+    reduceToolEvent(
+      acc,
+      { name: "query_city", result: citiesJson([{ id: "c1", name_ja: "", name_en: "" }]) },
+      "zh"
+    )
+    expect(acc.cityNames.c1).toBeUndefined()
+  })
+
+  it("cities 含脏条目（null / 非对象 / 非字符串字段）→ 跳过不污染", () => {
+    const acc = createForecastCardAccumulator()
+    reduceToolEvent(
+      acc,
+      {
+        name: "query_city",
+        result: citiesJson([
+          null,
+          { id: 123, name_ja: 42, name_en: true }, // 数字 id → 整体跳过
+          { id: "c2", name_ja: 42, name_en: true }, // 字符串 id 但名字非字符串 → 归一为空串、不记名
+          { id: "c1", name_ja: "東京", name_en: "Tokyo" },
+        ]),
+      },
+      "zh"
+    )
+    // 数字 id / 非字符串名字的条目不污染收集结果，正常条目照常收集
+    expect(acc.cityNames).toEqual({ c1: "東京" })
+  })
+
+  it("result 为 null / 非对象 → 解析失败忽略", () => {
+    const acc = createForecastCardAccumulator()
+    reduceToolEvent(acc, { name: "query_city", result: "null" }, "zh")
+    reduceToolEvent(acc, { name: "query_city", result: citiesJson("not-array") }, "zh")
+    expect(acc.cityNames).toEqual({})
+  })
+
   it("多城市全部收集", () => {
     const acc = createForecastCardAccumulator()
     reduceToolEvent(
@@ -135,6 +181,24 @@ describe("reduceToolEvent 预报采纳", () => {
     expect(acc.forecast).toBeNull()
   })
 
+  it("success 但 cityId 非字符串 → 记 metrics、cityId 置空串", () => {
+    const acc = createForecastCardAccumulator()
+    reduceToolEvent(
+      acc,
+      { name: "query_forecast", result: JSON.stringify({ status: "success", cityId: 42, metrics }) },
+      "zh"
+    )
+    expect(acc.forecast).not.toBeNull()
+    expect(acc.cityId).toBe("")
+  })
+
+  it("result 为 null / 非对象 → 解析失败忽略", () => {
+    const acc = createForecastCardAccumulator()
+    reduceToolEvent(acc, { name: "query_forecast", result: "null" }, "zh")
+    reduceToolEvent(acc, { name: "query_forecast", result: "42" }, "zh")
+    expect(acc.forecast).toBeNull()
+  })
+
   it("最新 success 覆盖先前（重复查询取最后一次）", () => {
     const acc = createForecastCardAccumulator()
     reduceToolEvent(acc, { name: "query_forecast", result: success("c1", { metrics: { ...metrics, predicted_high: 25 } }) }, "zh")
@@ -176,6 +240,17 @@ describe("toForecastCardInput", () => {
   it("cityId 无对应名称 → cityName 为 null（标题兜底）", () => {
     const acc = createForecastCardAccumulator()
     reduceToolEvent(acc, { name: "query_forecast", result: success("unknown-id") }, "zh")
+    expect(toForecastCardInput(acc)?.cityName).toBeNull()
+  })
+
+  it("cityId 为空串（成功结果缺 cityId）→ cityName 为 null（标题兜底）", () => {
+    const acc = createForecastCardAccumulator()
+    reduceToolEvent(
+      acc,
+      { name: "query_forecast", result: JSON.stringify({ status: "success", metrics }) },
+      "zh"
+    )
+    expect(acc.cityId).toBe("")
     expect(toForecastCardInput(acc)?.cityName).toBeNull()
   })
 })

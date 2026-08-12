@@ -351,6 +351,76 @@ describe("runSupervisedStream", () => {
     expect(events[events.length - 1].type).toBe("result")
   })
 
+  it("主管 buildTools 抛异常 → 兜底为 react-loop 结束", async () => {
+    // 编排层把主管任务整体包 try/catch：未预期异常时收敛为 react-loop 错误结果，
+    // 而不是把 rejection 泄漏给生成器消费者（断线/配置错的兜底路径）
+    const throwingSupervisor: SupervisorConfig<TestCtx> = {
+      agentId: "supervisor",
+      buildMessages: () => [{ role: "system", content: "s" }],
+      buildTools: () => {
+        throw new Error("boom")
+      },
+    }
+    const events = await consume(
+      runSupervisedStream({
+        model,
+        ctx,
+        supervisor: throwingSupervisor,
+        specialists: [],
+      })
+    )
+    expect(events).toEqual([
+      { type: "agent_start", agentId: "supervisor" },
+      { type: "result", result: { ok: false, error: "react-loop" } },
+    ])
+  })
+
+  it("专家/主管均无 usage → 聚合 usage 保持 null（不触发 mergeUsage）", async () => {
+    // 成功 result 但缺 usage 的专家与主管：编排层应跳过聚合、直接透传 null
+    vi.mocked(runReActLoopStream).mockImplementation(async function* (
+      params: LoopParams
+    ) {
+      const names = params.tools.map((t) => t.name)
+      if (names.some((n) => n.startsWith("delegate_"))) {
+        const tool = params.tools.find((t) => t.name === "delegate_noUsage")!
+        const obs = await tool.execute({})
+        yield { type: "tool", name: "delegate_noUsage", args: "{}", result: obs }
+        yield { type: "result", result: { ok: true, content: "final", trace: [] } }
+        return
+      }
+      yield { type: "result", result: { ok: true, content: "expert content", trace: [] } }
+    })
+    const noUsage: SpecialistAgent<TestCtx> = {
+      agentId: "noUsage",
+      toolDescription: () => "no usage expert",
+      buildMessages: () => [{ role: "system", content: "x" }],
+      buildTools: () => [],
+    }
+    const events = await consume(
+      runSupervisedStream({ model, ctx, supervisor, specialists: [noUsage] })
+    )
+    const result = events[events.length - 1]
+    if (result.type !== "result" || !result.result.ok) throw new Error("should be ok")
+    expect(result.result.usage).toBeNull()
+  })
+
+  it("主管循环出现未知事件类型 → 静默忽略、正常收敛", async () => {
+    // 事件分发链对未知 type 落空（不 panic），循环继续直到 result
+    setLoopMock(async function* () {
+      yield { type: "unexpected", foo: 1 } as never
+      yield {
+        type: "result",
+        result: { ok: true, content: "final", usage: SUPERVISOR_USAGE, trace: [] },
+      }
+    })
+    const events = await consume(
+      runSupervisedStream({ model, ctx, supervisor, specialists: [reconcile, risk] })
+    )
+    const result = events[events.length - 1]
+    if (result.type !== "result" || !result.result.ok) throw new Error("should be ok")
+    expect(result.result.content).toBe("final")
+  })
+
   it("signal 透传给主管与专家的 runReActLoopStream（断线取消在途委托）", async () => {
     setLoopMock(
       supervisorLoop({ delegateCalls: ["reconcile"], finalContent: "final" })

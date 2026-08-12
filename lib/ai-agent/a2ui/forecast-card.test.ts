@@ -337,6 +337,24 @@ describe("buildForecastCardMessages 空值与兜底", () => {
     expect(hasTile(msgs, "risk")).toBe(false)
   })
 
+  it("高/低温存在但区间缺失 → 磁贴无说明行（sub 不绑定）", () => {
+    // predicted_low 非空但 low_interval 为空：低磁贴应照常出现、只是不带区间说明
+    const partial: ForecastCardMetrics = {
+      ...emptyMetrics,
+      predicted_high: 30,
+      predicted_low: 20,
+    }
+    const msgs = buildForecastCardMessages(
+      { cityName: "上海", metrics: partial },
+      "zh"
+    )
+    const data = dataOf(msgs)
+    expect(hasTile(msgs, "high")).toBe(true)
+    expect(hasTile(msgs, "low")).toBe(true)
+    expect(data.value.highInterval).toBeUndefined()
+    expect(data.value.lowInterval).toBeUndefined()
+  })
+
   it("缺城市名：标题用「今日预报」兜底", () => {
     const zh = buildForecastCardMessages(
       { cityName: null, metrics: fullMetrics },

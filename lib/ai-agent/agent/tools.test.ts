@@ -127,9 +127,10 @@ function mockHistorySession(opts: {
   const cityEq2 = vi.fn(() => ({ maybeSingle: cityMaybeSingle }))
   const cityEq = vi.fn(() => ({ eq: cityEq2 }))
   const citySelect = vi.fn(() => ({ eq: cityEq }))
+  // data 不在这里兜底：null/undefined 原样透传，让工具内的 `data ?? []` 分支被真实走到
   const orderSource = vi
     .fn()
-    .mockResolvedValue({ data: opts.rows ?? [], error: opts.rowsError ?? null })
+    .mockResolvedValue({ data: opts.rows, error: opts.rowsError ?? null })
   const orderDay = vi.fn(() => ({ order: orderSource }))
   const lte = vi.fn(() => ({ order: orderDay }))
   const gte = vi.fn(() => ({ lte }))
@@ -206,6 +207,15 @@ describe("query_city", () => {
   it("无匹配 → 空数组", async () => {
     const [qc] = buildMainAgentTools(buildCtx())
     const out = JSON.parse(await qc.execute({ keyword: "nonexistent" })) as {
+      cities: unknown[]
+    }
+    expect(out.cities).toEqual([])
+  })
+
+  it("data 为 null（返回空）→ 空数组", async () => {
+    const { session } = mockSession(null as unknown as unknown[])
+    const [qc] = buildMainAgentTools(buildCtx({ session }))
+    const out = JSON.parse(await qc.execute({ keyword: "tokyo" })) as {
       cities: unknown[]
     }
     expect(out.cities).toEqual([])
@@ -369,6 +379,56 @@ describe("query_sources", () => {
     expect(out.sources[0]).toMatchObject({ source: "weatherapi", label: "WeatherAPI" })
   })
 
+  it("未知源 + 缺失条件字段 → label 回退源 key、condition 为 null", async () => {
+    const { session } = mockSourceSession({
+      city: { timezone: "Asia/Tokyo" },
+      daily: [
+        {
+          source: "unknown-src",
+          day: "2026-08-11",
+          high_temp: 30,
+          low_temp: 20,
+          precipitation: 0,
+          condition_label: null,
+          condition_category: null,
+        },
+      ],
+    })
+    const out = JSON.parse(await qs(buildCtx({ session })).execute({ cityId: CITY_ID })) as {
+      status: string
+      sources: {
+        source: string
+        label: string
+        high: number
+        low: number
+        precipitationMm: number
+        conditionLabel: string | null
+        conditionCategory: string | null
+      }[]
+    }
+    expect(out.status).toBe("success")
+    expect(out.sources[0]).toEqual({
+      source: "unknown-src",
+      label: "unknown-src",
+      high: 30,
+      low: 20,
+      precipitationMm: 0,
+      conditionLabel: null,
+      conditionCategory: null,
+    })
+  })
+
+  it("快照查询返回 null（data 为空）→ 同样 no-data", async () => {
+    const { session } = mockSourceSession({
+      city: { timezone: "Asia/Tokyo" },
+      daily: null as unknown as unknown[],
+    })
+    const out = JSON.parse(await qs(buildCtx({ session })).execute({ cityId: CITY_ID })) as {
+      status: string
+    }
+    expect(out.status).toBe("no-data")
+  })
+
   it("daily 查询报错 → error 观察而非崩溃", async () => {
     const { session } = mockSourceSession({
       city: { timezone: "Asia/Tokyo" },
@@ -484,6 +544,52 @@ describe("query_weather_history", () => {
       status: string
     }
     expect(out.status).toBe("no-data")
+  })
+
+  it("查询返回 null（data 为空）→ 同样 no-data", async () => {
+    const { session } = mockHistorySession({
+      city: { timezone: "Asia/Tokyo" },
+      rows: null as unknown as unknown[],
+    })
+    const out = JSON.parse(
+      await qh(buildCtx({ session })).execute({ cityId: CITY_ID })
+    ) as {
+      status: string
+    }
+    expect(out.status).toBe("no-data")
+  })
+
+  it("历史逐源映射：未知源 label 回退源 key、缺失条件字段为 null", async () => {
+    const { session } = mockHistorySession({
+      city: { timezone: "Asia/Tokyo" },
+      rows: [
+        {
+          source: "unknown-src",
+          day: "2026-08-11",
+          high_temp: 30,
+          low_temp: 20,
+          precipitation: 0,
+          condition_label: null,
+          condition_category: null,
+        },
+      ],
+    })
+    const out = JSON.parse(
+      await qh(buildCtx({ session })).execute({ cityId: CITY_ID })
+    ) as {
+      status: string
+      days: { day: string; sources: Record<string, unknown>[] }[]
+    }
+    expect(out.status).toBe("success")
+    expect(out.days[0].sources[0]).toEqual({
+      source: "unknown-src",
+      label: "unknown-src",
+      high: 30,
+      low: 20,
+      precipitationMm: 0,
+      conditionLabel: null,
+      conditionCategory: null,
+    })
   })
 
   it("默认 days=7 → 按近 7 天窗口查询（gte=6 天前、lte=今日）", async () => {
