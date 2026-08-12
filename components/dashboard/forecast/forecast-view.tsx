@@ -29,7 +29,7 @@ import { useRouter } from "@/i18n/navigation"
 import { refreshWeatherAction } from "@/lib/weather/actions"
 import { useElementHeight } from "@/hooks/use-element-height"
 import { useForecastStream } from "@/hooks/use-forecast-stream"
-import type { ForecastAgentErrorCode } from "@/lib/forecast-agent/common/errors"
+import { isForecastErrorCode } from "@/lib/forecast-agent/common/errors"
 import { WeatherError } from "@/lib/weather/errors"
 import {
   conditionCategorySchema,
@@ -44,17 +44,6 @@ import { useModelConfig } from "@/hooks/use-model-config"
 // 点击后走 useForecastStream → POST /api/ai-agent/forecast 的 SSE 流：tool 事件实时呈现
 // ReAct 工具调用过程（右侧推理卡），delta 逐字流式渲染 Markdown 正文，完成后落库回读；
 // 二次点击直接 duplicate 展示既有行。
-
-const AGENT_ERROR_KEYS = new Set<ForecastAgentErrorCode>([
-  "no-model",
-  "retry-cooldown",
-  "insufficient-data",
-  "provider",
-  "parse",
-  "consistency",
-  "react-loop",
-  "generic",
-])
 
 export function ForecastView({
   cities,
@@ -93,7 +82,7 @@ export function ForecastView({
     },
     onError: (code) => {
       toast.error(
-        AGENT_ERROR_KEYS.has(code)
+        isForecastErrorCode(code)
           ? t(`forecastAgent.error.${code}`)
           : t("forecastAgent.error.generic")
       )

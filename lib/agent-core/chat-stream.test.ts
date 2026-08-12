@@ -280,6 +280,52 @@ describe("chatCompletionStream", () => {
   })
 
 
+  it("SSE 流：id/name 每分片重复提供 → 首现赋值不拼接，done 工具调用完整", async () => {
+    // 部分 OpenAI 兼容端点每帧重复完整 id/name：若按追加会拼出 id"c1c1"/name"get_metricget_metric"，
+    // 应只在首帧赋值、arguments 跨帧追加
+    mockedResolve.mockResolvedValue([{ address: "1.2.3.4", family: 4 }])
+    const frames = [
+      `data: ${JSON.stringify({
+        choices: [
+          { delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "get_metric", arguments: '{"k":' } }] } },
+        ],
+      })}\n\n`,
+      `data: ${JSON.stringify({
+        choices: [
+          { delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "get_metric", arguments: '"v"}' } }] } },
+        ],
+      })}\n\n`,
+      "data: [DONE]\n\n",
+    ]
+    mockedFetchStream.mockResolvedValue({
+      ok: true,
+      response: sseResponse(frames),
+    })
+    const res = await chatCompletionStream(CHAT_PARAMS)
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      const events = await collectEvents(res)
+      const done = events.at(-1) as Extract<ChatStreamEvent, { type: "done" }>
+      expect(done.toolCalls).toEqual([
+        { id: "c1", name: "get_metric", arguments: '{"k":"v"}' },
+      ])
+    }
+  })
+
+  it("传入 signal → 透传给 fetchStream 的 init.signal（断线取消入口）", async () => {
+    mockedResolve.mockResolvedValue([{ address: "1.2.3.4", family: 4 }])
+    mockedFetchStream.mockResolvedValue({
+      ok: true,
+      response: sseResponse(["data: [DONE]\n\n"]),
+    })
+    const controller = new AbortController()
+    const res = await chatCompletionStream(CHAT_PARAMS, {
+      signal: controller.signal,
+    })
+    expect(res.ok).toBe(true)
+    expect(mockedFetchStream.mock.calls[0][1]?.signal).toBe(controller.signal)
+  })
+
   it("Content-Type 非流式也非 JSON → parse", async () => {
     mockedResolve.mockResolvedValue([{ address: "1.2.3.4", family: 4 }])
     mockedFetchStream.mockResolvedValue({

@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from "next-intl"
 
 import { METRICS, type ForecastDbRow } from "@/lib/schemas/forecast-agent"
+import { isForecastErrorCode } from "@/lib/forecast-agent/common/errors"
 import type { CityRow } from "@/lib/weather/view-types"
 import type { ForecastStreamState } from "@/hooks/use-forecast-stream"
 
@@ -22,18 +23,6 @@ type ForecastAgentCardProps = {
   row: ForecastDbRow | null // done/duplicate 后的权威行（可能 success/failed）
   stream: ForecastStreamState // 流式实时状态：status/phase/markdown/errorCode
 }
-
-// 已知失败错误码集合，防御非法 error_code 不落到 i18n 缺失键
-const ERROR_KEYS = new Set([
-  "no-model",
-  "retry-cooldown",
-  "insufficient-data",
-  "provider",
-  "parse",
-  "consistency",
-  "react-loop",
-  "generic",
-])
 
 // 页脚：权重/公式版本/模型/token（新 Markdown 行与旧结构化行共用）
 function CardFooterMeta({
@@ -191,10 +180,9 @@ export function ForecastAgentCard({
 
   // —— 错误态：已流式出的半成品保留灰显（校验失败/中途出错），未出内容只显错误文案 ——
   if (stream.status === "error") {
-    const code =
-      stream.errorCode && ERROR_KEYS.has(stream.errorCode)
-        ? stream.errorCode
-        : "generic"
+    const code = isForecastErrorCode(stream.errorCode)
+      ? stream.errorCode
+      : "generic"
     return (
       <ForecastCardShell
         tone="error"
@@ -213,10 +201,9 @@ export function ForecastAgentCard({
   // —— done：以服务端回读行为准 ——
   // duplicate/failed 行（已存在但生成失败）：显示失败错误
   if (row && row.status === "failed") {
-    const code =
-      row.error_code && ERROR_KEYS.has(row.error_code)
-        ? row.error_code
-        : "generic"
+    const code = isForecastErrorCode(row.error_code)
+      ? row.error_code
+      : "generic"
     return (
       <ForecastCardShell
         tone="error"

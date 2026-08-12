@@ -6,14 +6,19 @@ import { Wrench } from "lucide-react"
 import { useTranslations } from "next-intl"
 
 import type { ForecastDbRow } from "@/lib/schemas/forecast-agent"
-import type { ForecastStreamState } from "@/hooks/use-forecast-stream"
+import {
+  groupByAgent,
+  type ForecastStreamState,
+  type TimelineGroup,
+} from "@/hooks/use-forecast-stream"
 
 import { ForecastCardShell } from "@/components/ui-preset/forecast-card-shell"
 
-// AI 推理过程卡片：展示 ReAct 思考文字 + 工具调用轨迹（thought/action/observation），流式实时出现。
-// 与 ForecastAgentCard 共用同一流状态：本卡管「思考与工具调用过程」，那张卡管 AI 的 Markdown 正文。
-// 流式期把 SSE thought/tool 事件逐条追加渲染（思考文字 + 工具观察结果）；成功后以服务端回读行
-// react_trace 为权威；错误时半成品灰显。模型一步直出（无工具调用）时本卡不展示。
+// AI 推理过程卡片：展示多 agent 时间线（每位 agent 的 ReAct 思考文字 + 工具调用轨迹），流式实时出现。
+// 与 ForecastAgentCard 共用同一流状态：本卡管「各 agent 思考与工具调用过程」，那张卡管 AI 的 Markdown 正文。
+// 多 agent 编排后 SSE 事件带 agentId：agent_start 开组、thought/tool 归入所属组，组头按 agentLabel 本地化
+// （未知 id 回落 raw）。成功以服务端回读行 react_trace 为权威并按 agent_id 分组；错误时半成品灰显。
+// 模型一步直出（无工具调用）时本卡不展示。
 
 type ForecastReasoningCardProps = {
   row: ForecastDbRow | null // done/duplicate 后的权威行（可能 success/failed）
@@ -101,6 +106,45 @@ function TraceList({
   )
 }
 
+// 组名本地化：固定 id→i18n 映射（supervisor/reconcile/risk）；未知 id 回落 raw
+function agentLabel(
+  agentId: string,
+  t: ReturnType<typeof useTranslations<"dashboard.forecast.forecastAgent">>
+): string {
+  const key = `agentLabel.${agentId}`
+  return t.has(key) ? t(key) : agentId
+}
+
+// 多 agent 时间线：按分组渲染，组头 = agent 名 + 组内工具步骤列表。
+// 旧行（无 agent 标记，全部归 "" 单组）不加组头，渲染与历史一致
+function TimelineList({
+  agents,
+  t,
+}: {
+  agents: TimelineGroup[]
+  t: ReturnType<typeof useTranslations<"dashboard.forecast.forecastAgent">>
+}) {
+  const legacyOnly = agents.every((g) => g.agentId === "")
+  return (
+    <div className="flex flex-col gap-5">
+      {agents.map((group, gi) => (
+        <section
+          key={`${group.agentId}-${gi}`}
+          className="flex flex-col gap-2.5"
+        >
+          {!legacyOnly && group.agentId !== "" && (
+            <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <span aria-hidden="true" className="size-1.5 rounded-full bg-sky-400" />
+              {agentLabel(group.agentId, t)}
+            </h4>
+          )}
+          <TraceList steps={group.steps} t={t} />
+        </section>
+      ))}
+    </div>
+  )
+}
+
 // 卡片外观按「流式中/错误/终态」三档切换；顶部分栏样式与左侧城市卡同套天空蓝，保持一行内观感统一。
 // 高度与左列城市卡对齐（外层按左卡高度限高）：h-full 撑满限高后的容器，内容区 overflow-y-auto 滚动；
 // 流式期轨迹步逐条追加时自动滚到底部（仅当用户本就贴近底部，上翻回读时不抢滚动）。
@@ -122,7 +166,7 @@ function ReasoningCardShell({
     const el = scrollRef.current
     if (!el || !isStreaming) return
     if (nearBottomRef.current) el.scrollTop = el.scrollHeight
-  }, [stream.steps, isStreaming])
+  }, [stream.agents, isStreaming])
 
   // 滚动位置持续记录：距底 <48px 视为「紧跟底部」，新步骤到来才自动下滚
   const handleScroll = () => {
@@ -157,12 +201,12 @@ export function ForecastReasoningCard({
   // 尚未开始且无行：不占位，等首次点击后出现
   if (stream.status === "idle" && !row) return null
 
-  // —— 流式期：思考与工具调用逐条出现；尚无轨迹步时显示占位 + 阶段指示 ——
+  // —— 流式期：各 agent 分组实时出现；尚无轨迹步时显示占位 + 阶段指示 ——
   if (stream.status === "streaming") {
     return (
       <ReasoningCardShell stream={stream}>
-        {stream.steps.length > 0 ? (
-          <TraceList steps={stream.steps} t={t} />
+        {stream.agents.length > 0 ? (
+          <TimelineList agents={stream.agents} t={t} />
         ) : (
           <p className="text-sm text-muted-foreground">{t("generating")}</p>
         )}
@@ -172,23 +216,23 @@ export function ForecastReasoningCard({
 
   // —— 错误态：已累积的轨迹步半成品灰显（错误文案由预报卡统一展示） ——
   if (stream.status === "error") {
-    if (stream.steps.length === 0) return null
+    if (stream.agents.length === 0) return null
     return (
       <ReasoningCardShell stream={stream}>
         <div className="opacity-60">
-          <TraceList steps={stream.steps} t={t} />
+          <TimelineList agents={stream.agents} t={t} />
         </div>
       </ReasoningCardShell>
     )
   }
 
-  // —— done：以服务端回读行 react_trace 为准（权威轨迹）；无工具调用/失败行不展示 ——
+  // —— done：以服务端回读行 react_trace 为准（权威轨迹）并按 agent 分组；无工具调用/失败行不展示 ——
   if (row && row.status === "success") {
     const trace = row.react_trace ?? []
     if (trace.length === 0) return null
     return (
       <ReasoningCardShell stream={stream}>
-        <TraceList steps={trace} t={t} />
+        <TimelineList agents={groupByAgent(trace)} t={t} />
       </ReasoningCardShell>
     )
   }

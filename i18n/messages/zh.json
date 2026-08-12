@@ -74,10 +74,47 @@
     "adviceTitle": "个性化建议",
     "adviceDesc": "根据高精度预测和您的个人习惯，智能生成户外活动规划，让天气服务于人"
   },
+  "pagination": {
+    "total": "共 {count} 条",
+    "perPage": "每页",
+    "page": "{page} / {total} 页",
+    "prev": "上一页",
+    "next": "下一页"
+  },
   "dashboard": {
-    "title": "仪表盘",
-    "desc": "天气功能开发中，敬请期待",
     "loading": "加载中…",
+    "home": {
+      "hero": {
+        "title": "仪表盘",
+        "desc": "多数据源天气采集与 AI 预测平台，从下方入口快速开始。"
+      },
+      "cards": {
+        "aiAgent": {
+          "label": "AI 助手",
+          "desc": "与 AI 对话，获取天气解读与出行建议"
+        },
+        "forecast": {
+          "label": "当前预报",
+          "desc": "多城市多源天气实时对比，一键生成当日 AI 预报"
+        },
+        "history": {
+          "label": "历史天气",
+          "desc": "近 7 日每日天气快照、趋势图表与数据对比"
+        },
+        "cities": {
+          "label": "城市管理",
+          "desc": "维护关注城市列表与天气采集范围"
+        },
+        "logs": {
+          "label": "采集日志",
+          "desc": "查看天气采集运行记录与采集结果"
+        },
+        "settings": {
+          "label": "设置",
+          "desc": "管理偏好设置与 AI 模型连接"
+        }
+      }
+    },
     "sidebar": {
       "dashboard": "仪表盘",
       "aiAgent": "AI 助手",
@@ -89,7 +126,42 @@
     },
     "aiAgent": {
       "title": "AI 助手",
-      "desc": "AI 助手功能开发中，敬请期待"
+      "desc": "与 AI 对话，获取天气解读与出行建议",
+      "setup": {
+        "title": "请先配置 AI 模型",
+        "desc": "AI 助手需要先配置模型才能使用，请前往设置页完成配置。",
+        "goSettings": "去配置模型"
+      },
+      "conversations": {
+        "new": "新建对话",
+        "empty": "还没有对话，点击上方「新建对话」开始",
+        "delete": "删除",
+        "deleting": "删除中…",
+        "deleteTitle": "删除对话",
+        "deleteConfirm": "删除后无法恢复，确认删除该对话？",
+        "cancel": "取消",
+        "defaultTitle": "新对话"
+      },
+      "chat": {
+        "placeholder": "输入消息，Enter 发送…",
+        "send": "发送",
+        "sending": "思考中…",
+        "empty": "发送一条消息开始对话",
+        "errorBanner": "回复失败",
+        "tokensLabel": "Token 消耗",
+        "tokensInOut": "（输入 {prompt} · 输出 {output}）"
+      },
+      "errors": {
+        "invalidUrl": "模型地址无效",
+        "blocked": "模型地址被拦截（可能指向内网）",
+        "network": "网络连接失败",
+        "http": "模型服务返回错误",
+        "parse": "模型返回无法解析",
+        "unauthorized": "请先登录",
+        "conversationNotFound": "对话不存在或已被删除",
+        "noModel": "未配置模型",
+        "generic": "出错了，请稍后重试"
+      }
     },
     "cities": {
       "title": "城市",
@@ -202,6 +274,11 @@
           "agent": "AI 推理",
           "validate": "校验结果",
           "settle": "保存结果"
+        },
+        "agentLabel": {
+          "supervisor": "统筹主管",
+          "reconcile": "源核对",
+          "risk": "风险解读"
         },
         "riskNone": "无",
         "units": {

@@ -8,8 +8,11 @@ WeatherMind：Next 16.2（App Router）+ React 19.2 + Tailwind 4 + shadcn/ui + p
 - `app/[locale]/` 页面；定时采集 `scripts/weather-cron.ts`
 - `supabase/` server.ts(会话)/service.ts(service_role 写)/proxy.ts(鉴权+刷新)/auth/migrations
 - `lib/weather/` providers(源 adapter)/http.ts(唯一 fetch)/pipeline/daily/mapping/actions.ts
+- `lib/agent-core/` 通用 AI/ReAct 基建（chat 调用 + ReAct 循环 + 多 agent 编排 + SSRF，两个 Agent 共用）
+- `lib/forecast-agent/` 确定性集成引擎 + AI 解读（ReAct 流式）
+- `lib/ai-agent/` AI 助手对话（主 Agent 提示词/工具 + 会话库操作 + 聊天 SSE）
 - `lib/schemas/` Zod 前后端共用；`components/`、`hooks/`、`i18n/`
-- `docs/` 人读，**agent 勿读**；developer-zh/en 改码须同步（见 rules/docs-sync.md）
+- `docs/` 人读，**agent 勿读**；developer-zh/en、quickstart-zh/en 改码须同步（见 rules/docs-sync.md）
 - `.github/workflows/` ci.yml、stryker.yml(PR 定向变异)、weather-cron.yml(每日采集)
 
 硬性约定：
@@ -29,4 +32,11 @@ WeatherMind：Next 16.2（App Router）+ React 19.2 + Tailwind 4 + shadcn/ui + p
 | zod-usage | 解析不可信数据 |
 | ui-components | 界面样式 |
 | testing | 测试范围（先调 skill `vitest`） |
-| docs-sync | 改码后同步 docs/developer-zh.md、developer-en.md |
+| docs-sync | 改码后同步 docs/developer-zh.md、developer-en.md、quickstart-zh.md、quickstart-en.md |
+
+技能（skills/ 按需触发）：
+| 技能 | 适用 |
+| --- | --- |
+| forms | 写表单前（TanStack Query+Form+Zod） |
+| vitest | 写测试前 |
+| prompt | 写提示词前（分层架构） |

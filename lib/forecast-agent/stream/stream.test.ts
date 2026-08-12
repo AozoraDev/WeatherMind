@@ -1,21 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { computeWeights } from "../engine/weights"
-import { runReActLoopStream } from "../agent/react-stream"
+import {
+  runSupervisedStream,
+  type AgentId,
+  type AgentTraceStep,
+  type OrchestratorStreamEvent,
+} from "@/lib/agent-core/orchestrator"
 import {
   runForecastAgentStream,
   type ForecastAgentStreamEvent,
 } from "./stream"
 import { CITY, CURRENT_TWO, DAILY_TWO, MODEL, PARAMS, fakeSupabase } from "../common/test-utils"
 
-vi.mock("../agent/react-stream", () => ({ runReActLoopStream: vi.fn() }))
+vi.mock("@/lib/agent-core/orchestrator", () => ({ runSupervisedStream: vi.fn() }))
 vi.mock("../engine/weights", () => ({ computeWeights: vi.fn() }))
 
-const mockedReActStream = vi.mocked(runReActLoopStream)
+const mockedSupervised = vi.mocked(runSupervisedStream)
 const mockedWeights = vi.mocked(computeWeights)
 
 beforeEach(() => {
-  mockedReActStream.mockReset()
+  mockedSupervised.mockReset()
   mockedWeights.mockReset()
   mockedWeights.mockResolvedValue({
     "open-meteo": 0.5,
@@ -23,6 +28,50 @@ beforeEach(() => {
     weatherapi: 0.2,
   } as never)
 })
+
+// 多 agent 编排 mock：主管先委托两位专家（reconcile/risk），再逐 delta 产出最终 Markdown。
+// 事件全部带 agentId（编排层契约），供 stream 逐事件透传断言
+function supervisedSuccess(opts: {
+  content: string
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null
+  trace?: AgentTraceStep[]
+}): AsyncGenerator<OrchestratorStreamEvent> {
+  const usage = opts.usage ?? { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18 }
+  const trace = opts.trace ?? []
+  return (async function* () {
+    yield { type: "agent_start", agentId: "supervisor" }
+    yield { type: "thought", agentId: "supervisor", text: "先核对 openweather" }
+    yield { type: "rollback", agentId: "supervisor", chars: "先核对 openweather".length }
+    yield { type: "agent_start", agentId: "reconcile" }
+    yield {
+      type: "tool",
+      agentId: "reconcile",
+      name: "query_source",
+      args: '{"source":"openweather"}',
+      result: '{"high":31.2}',
+    }
+    yield { type: "agent_end", agentId: "reconcile", ok: true }
+    yield {
+      type: "tool",
+      agentId: "supervisor",
+      name: "delegate_reconcile",
+      args: "{}",
+      result: "核对结论：各源一致",
+    }
+    yield { type: "agent_start", agentId: "risk" }
+    yield { type: "agent_end", agentId: "risk", ok: true }
+    yield {
+      type: "tool",
+      agentId: "supervisor",
+      name: "delegate_risk",
+      args: "{}",
+      result: "风险解读：高温注意",
+    }
+    yield { type: "delta", agentId: "supervisor", text: "## 推理过程\n" }
+    yield { type: "delta", agentId: "supervisor", text: opts.content.slice("## 推理过程\n".length) }
+    yield { type: "result", result: { ok: true, content: opts.content, usage, trace } }
+  })()
+}
 
 describe("runForecastAgentStream", () => {
   // 合法 Markdown 文档：两段齐 + high/low 落在集成结果（30.4/22.4）容差内 + poP=0 允许无 %
@@ -60,7 +109,7 @@ describe("runForecastAgentStream", () => {
       runForecastAgentStream(session as never, service as never, PARAMS)
     )
     expect(events).toContainEqual({ type: "duplicate", row: existing })
-    expect(mockedReActStream).not.toHaveBeenCalled()
+    expect(mockedSupervised).not.toHaveBeenCalled()
   })
 
   it("认领冲突（他人 pending 行）→ duplicate 其行", async () => {
@@ -96,7 +145,7 @@ describe("runForecastAgentStream", () => {
       type: "duplicate",
       row: { id: "theirs", status: "pending" },
     })
-    expect(mockedReActStream).not.toHaveBeenCalled()
+    expect(mockedSupervised).not.toHaveBeenCalled()
   })
 
   it("失败冷却期内（failed_at 距今 <5 分钟）→ retry-cooldown，不认领、不触发 AI", async () => {
@@ -120,7 +169,7 @@ describe("runForecastAgentStream", () => {
       runForecastAgentStream(session as never, service as never, PARAMS)
     )
     expect(events).toContainEqual({ type: "error", code: "retry-cooldown" })
-    expect(mockedReActStream).not.toHaveBeenCalled()
+    expect(mockedSupervised).not.toHaveBeenCalled()
     // 未走到认领：不插入新行
     expect(
       service.calls.filter((c) => c.method === "insert")
@@ -195,7 +244,7 @@ describe("runForecastAgentStream", () => {
       runForecastAgentStream(session as never, service as never, PARAMS)
     )
     expect(events.at(-1)).toEqual({ type: "error", code: "insufficient-data" })
-    expect(mockedReActStream).not.toHaveBeenCalled()
+    expect(mockedSupervised).not.toHaveBeenCalled()
     // 失败落库：settle 为 failed + failed_at（供冷却计时），不再删除
     const update = service.calls.find(
       (c) => c.method === "update"
@@ -210,30 +259,22 @@ describe("runForecastAgentStream", () => {
     ).toHaveLength(0)
   })
 
-  it("全链路：认领 → 集成 → 流式 AI（tool+delta）→ 校验 → settle 含 markdown_body → done", async () => {
-    // 流式 ReAct：工具步 yield tool，最终步逐 delta 产 Markdown 全文，末帧 result
-    mockedReActStream.mockImplementation(async function* () {
-      // 工具步：思考文字透传 + 回滚（验证 thought/rollback 事件转发链路）
-      yield { type: "thought", text: "先核对 openweather" }
-      yield { type: "rollback", chars: "先核对 openweather".length }
-      yield {
-        type: "tool",
-        name: "query_source",
-        args: '{"source":"openweather"}',
-        result: '{"high":31.2}',
-      }
-      yield { type: "delta", text: "## 推理过程\n" }
-      yield { type: "delta", text: VALID_MD.slice("## 推理过程\n".length) }
-      yield {
-        type: "result",
-        result: {
-          ok: true,
-          content: VALID_MD,
-          usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18 },
-          trace: [],
-        },
-      }
-    })
+  it("全链路：认领 → 集成 → 多 agent 编排（agent_start/tool/delta）→ 校验 → settle 含 markdown_body → done", async () => {
+    const TRACE = [
+      {
+        thought: "先核对 openweather",
+        actions: [{ name: "query_source", args: "{}", result: "{}" }],
+        agent_id: "reconcile",
+      },
+      {
+        thought: "委托专家",
+        actions: [{ name: "delegate_risk", args: "{}", result: "风险解读：高温注意" }],
+        agent_id: "supervisor",
+      },
+    ]
+    mockedSupervised.mockImplementation(() =>
+      supervisedSuccess({ content: VALID_MD, trace: TRACE })
+    )
 
     let claimedRow: Record<string, unknown> | null = null
     const handler = async (table: string, first: string) => {
@@ -277,28 +318,49 @@ describe("runForecastAgentStream", () => {
       "settle",
     ])
 
-    // 工具步与 delta 透传：thought/rollback 透传、tool 含观察结果、delta 拼接后等于全文
+    // 多 agent 边界事件透传：agent_start/agent_end 原样转发，带 agentId
+    expect(events).toContainEqual({ type: "agent_start", agentId: "supervisor" })
+    expect(events).toContainEqual({ type: "agent_start", agentId: "reconcile" })
+    expect(events).toContainEqual({ type: "agent_start", agentId: "risk" })
+    expect(events).toContainEqual({ type: "agent_end", agentId: "reconcile", ok: true })
+
+    // thought/rollback/tool 带 agentId 透传
     expect(events).toContainEqual({
       type: "thought",
+      agentId: "supervisor",
       text: "先核对 openweather",
     })
     expect(events).toContainEqual({
       type: "rollback",
+      agentId: "supervisor",
       chars: "先核对 openweather".length,
     })
     expect(events).toContainEqual({
       type: "tool",
+      agentId: "reconcile",
       name: "query_source",
       args: '{"source":"openweather"}',
       result: '{"high":31.2}',
     })
+    expect(events).toContainEqual({
+      type: "tool",
+      agentId: "supervisor",
+      name: "delegate_reconcile",
+      args: "{}",
+      result: "核对结论：各源一致",
+    })
+
+    // 只有主管的 delta 拼接后等于全文（专家 delta/rollback 已由编排层丢弃，此处不出现）
     const allDelta = events
-      .filter((e): e is { type: "delta"; text: string } => e.type === "delta")
+      .filter(
+        (e): e is { type: "delta"; text: string; agentId: AgentId } =>
+          e.type === "delta"
+      )
       .map((e) => e.text)
       .join("")
     expect(allDelta).toBe(VALID_MD)
 
-    // settle patch 含 markdown_body 全文（纯 Markdown 输出契约落库）
+    // settle patch 含 markdown_body 全文 + 含 agent_id 的全局轨迹（纯 Markdown 输出契约落库）
     const patch = service.calls.find((c) => c.method === "update")
       ?.args[0] as Record<string, unknown>
     expect(patch).toMatchObject({
@@ -307,14 +369,18 @@ describe("runForecastAgentStream", () => {
       model: MODEL.model,
       predicted_high: expect.any(Number),
       predicted_low: expect.any(Number),
-      react_trace: [],
+      react_trace: TRACE,
       error_code: null,
       // usage 落库（杀 ?? null 被 && null 兜掉的突变）
       prompt_tokens: 11,
       completion_tokens: 7,
     })
-    // 透传给 ReAct 的模型参数与 usage 读取自 loopResult（杀对象字面量 {} 突变）
-    expect(mockedReActStream.mock.calls[0][0].model).toEqual(MODEL)
+    // 透传给编排层的模型参数与 usage 读取自 loopResult（杀对象字面量 {} 突变）
+    expect(mockedSupervised.mock.calls[0][0].model).toEqual(MODEL)
+    // 专家团注册传入编排层：主管 + 两位专家（顺序固定）
+    const call = mockedSupervised.mock.calls[0][0]
+    expect(call.supervisor.agentId).toBe("supervisor")
+    expect(call.specialists.map((s) => s.agentId)).toEqual(["reconcile", "risk"])
 
     // done 事件带 success 行
     const done = events.find(
@@ -329,13 +395,9 @@ describe("runForecastAgentStream", () => {
 基于两源确定性集成计算，加权平均得到预测高温与低温，两源均报晴且无降水，天气稳定。
 ## 预报
 今日预测高温 40°C，低温 22°C，降水概率很低。`
-    mockedReActStream.mockImplementation(async function* () {
-      yield { type: "delta", text: BAD_MD }
-      yield {
-        type: "result",
-        result: { ok: true, content: BAD_MD, usage: null, trace: [] },
-      }
-    })
+    mockedSupervised.mockImplementation(() =>
+      supervisedSuccess({ content: BAD_MD })
+    )
     const handler = async (table: string, first: string) => {
       if (table === "cities") return { data: CITY, error: null }
       if (table === "weather_daily") return { data: DAILY_TWO, error: null }
@@ -366,8 +428,8 @@ describe("runForecastAgentStream", () => {
     ).toHaveLength(0)
   })
 
-  it("ReAct 流 provider 错 → 落 failed+failed_at + provider", async () => {
-    mockedReActStream.mockImplementation(async function* () {
+  it("编排 provider 错 → 落 failed+failed_at + provider", async () => {
+    mockedSupervised.mockImplementation(async function* (): AsyncGenerator<OrchestratorStreamEvent> {
       yield { type: "result", result: { ok: false, error: "network" } }
     })
     const handler = async (table: string, first: string) => {
@@ -396,8 +458,8 @@ describe("runForecastAgentStream", () => {
     expect(typeof update.failed_at).toBe("string")
   })
 
-  it("ReAct 流步数耗尽 → 落 failed+failed_at + react-loop", async () => {
-    mockedReActStream.mockImplementation(async function* () {
+  it("编排步数耗尽 → 落 failed+failed_at + react-loop", async () => {
+    mockedSupervised.mockImplementation(async function* (): AsyncGenerator<OrchestratorStreamEvent> {
       yield { type: "result", result: { ok: false, error: "react-loop" } }
     })
     const handler = async (table: string, first: string) => {
@@ -427,13 +489,9 @@ describe("runForecastAgentStream", () => {
   })
 
   it("settle 成功落库失败 → rollback 删除 pending 行并报 generic", async () => {
-    mockedReActStream.mockImplementation(async function* () {
-      yield { type: "delta", text: VALID_MD }
-      yield {
-        type: "result",
-        result: { ok: true, content: VALID_MD, usage: null, trace: [] },
-      }
-    })
+    mockedSupervised.mockImplementation(() =>
+      supervisedSuccess({ content: VALID_MD })
+    )
     const handler = async (table: string, first: string) => {
       if (table === "cities") return { data: CITY, error: null }
       if (table === "weather_daily") return { data: DAILY_TWO, error: null }
@@ -485,7 +543,7 @@ describe("runForecastAgentStream", () => {
       runForecastAgentStream(session as never, service as never, PARAMS)
     )
     expect(events.at(-1)).toEqual({ type: "error", code: "generic" })
-    expect(mockedReActStream).not.toHaveBeenCalled()
+    expect(mockedSupervised).not.toHaveBeenCalled()
     // 已认领但未落库 → finally 删除 pending 行
     expect(service.calls).toContainEqual({
       table: "forecast_agent_predictions",
@@ -495,13 +553,9 @@ describe("runForecastAgentStream", () => {
   })
 
   it("客户端断开且清理删除失败 → 兜底 settle 为 failed", async () => {
-    mockedReActStream.mockImplementation(async function* () {
-      yield { type: "delta", text: "## 推理过程\n" }
-      yield {
-        type: "result",
-        result: { ok: true, content: VALID_MD, usage: null, trace: [] },
-      }
-    })
+    mockedSupervised.mockImplementation(() =>
+      supervisedSuccess({ content: VALID_MD })
+    )
     const handler = async (table: string, first: string) => {
       if (table === "cities") return { data: CITY, error: null }
       if (table === "weather_daily") return { data: DAILY_TWO, error: null }
@@ -525,7 +579,7 @@ describe("runForecastAgentStream", () => {
       PARAMS
     )
     let sawDelta = false
-    for (let i = 0; i < 12 && !sawDelta; i++) {
+    for (let i = 0; i < 20 && !sawDelta; i++) {
       const { value } = await gen.next()
       if (value?.type === "delta") sawDelta = true
     }
@@ -592,20 +646,15 @@ describe("runForecastAgentStream", () => {
       })
     )
     expect(events).toEqual([{ type: "error", code: "generic" }])
-    expect(mockedReActStream).not.toHaveBeenCalled()
+    expect(mockedSupervised).not.toHaveBeenCalled()
     // 断线即止，不碰城市表
     expect(session.calls.filter((c) => c.table === "cities")).toHaveLength(0)
   })
 
   it("客户端断开（生成器被 return）→ finally 兜底删除未落库的 pending 行", async () => {
-    // ReAct 流在首帧后挂起（模拟长流中段）；测试推进到 agent 阶段后对生成器 return()
-    mockedReActStream.mockImplementation(async function* () {
-      yield { type: "delta", text: "## 推理过程\n" }
-      yield {
-        type: "result",
-        result: { ok: true, content: VALID_MD, usage: null, trace: [] },
-      }
-    })
+    mockedSupervised.mockImplementation(() =>
+      supervisedSuccess({ content: VALID_MD })
+    )
     const handler = async (table: string, first: string) => {
       if (table === "cities") return { data: CITY, error: null }
       if (table === "weather_daily") return { data: DAILY_TWO, error: null }
@@ -628,7 +677,7 @@ describe("runForecastAgentStream", () => {
     )
     // 推进到 agent 阶段的 delta，确认已认领（pending 行在库）
     let sawDelta = false
-    for (let i = 0; i < 12 && !sawDelta; i++) {
+    for (let i = 0; i < 20 && !sawDelta; i++) {
       const { value } = await gen.next()
       if (value?.type === "delta") sawDelta = true
     }
@@ -652,13 +701,9 @@ describe("runForecastAgentStream", () => {
   })
 
   it("settle 成功但回读失败 → 不删除成功行，仅报 generic", async () => {
-    mockedReActStream.mockImplementation(async function* () {
-      yield { type: "delta", text: VALID_MD }
-      yield {
-        type: "result",
-        result: { ok: true, content: VALID_MD, usage: null, trace: [] },
-      }
-    })
+    mockedSupervised.mockImplementation(() =>
+      supervisedSuccess({ content: VALID_MD })
+    )
     const handler = async (table: string, first: string) => {
       if (table === "cities") return { data: CITY, error: null }
       if (table === "weather_daily") return { data: DAILY_TWO, error: null }

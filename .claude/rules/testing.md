@@ -13,6 +13,7 @@
 - 覆盖率 ≠ 有效性，看变异
 
 ## 变异测试（Stryker）
+**只在用户主动要求时跑**（明说「跑 Stryker」/`test:stryker`），不做每次需求/改码的默认步骤
 验证测试有效性：`pnpm test:stryker`，config 见 `stryker.config.json`，用法见 skill `vitest`
 - 只变异「有测试」的源文件（mutate 含 `supabase/auth/errors.ts`），无测试的不变异
 - PR 定向变异变更文件中「有测试」的（磁盘存在同名 `.test.ts` 才纳入），结果看 Actions 日志（stryker.yml）

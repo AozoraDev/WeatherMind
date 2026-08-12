@@ -6,6 +6,22 @@ export type HttpErrorCode = "network" | "http"
 export type FetchJsonResult =
   { ok: true; json: unknown } | { ok: false; error: HttpErrorCode }
 
+// 外部取消信号（客户端断线等，经 init.signal 传入）与 timeoutMs 超时信号合并：
+// 任一触发即取消（Node 20.3+/jsdom 23+ 均支持 AbortSignal.any）。
+// 只有单信号时原样返回，都不传则 undefined，保持原行为不变
+function combineSignal(
+  external: AbortSignal | null | undefined,
+  timeoutMs: number | undefined
+): AbortSignal | undefined {
+  const signals = [
+    external,
+    timeoutMs ? AbortSignal.timeout(timeoutMs) : null,
+  ].filter((s): s is AbortSignal => s != null)
+  if (signals.length === 0) return undefined
+  if (signals.length === 1) return signals[0]
+  return AbortSignal.any(signals)
+}
+
 // 拉取并解析 JSON：网络异常归 network，非 2xx 归 http，绝不抛错。
 // timeoutMs 传入时用 AbortSignal.timeout 限时（AI 模型调用等慢接口用），超时归 network
 export async function fetchJson(
@@ -19,7 +35,7 @@ export async function fetchJson(
       // 天气数据要最新，禁用 Next 上游缓存，避免返回旧值
       cache: "no-store",
       headers: { accept: "application/json", ...init?.headers },
-      signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : init?.signal,
+      signal: combineSignal(init?.signal, timeoutMs),
     })
     if (!res.ok) return { ok: false, error: "http" }
     return { ok: true, json: await res.json() }
@@ -49,7 +65,7 @@ export async function fetchStream(
       redirect: "manual",
       cache: "no-store",
       headers: { accept: "text/event-stream", ...init?.headers },
-      signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : init?.signal,
+      signal: combineSignal(init?.signal, timeoutMs),
     })
     if (!res.ok) return { ok: false, error: "http" }
     if (!res.body) return { ok: false, error: "network" }

@@ -7,6 +7,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  TablePagination,
+  type TablePaginationProps,
+} from "@/components/ui-preset/table-pagination"
 import { cn } from "@/lib/utils"
 
 type DataTableProps = ComponentProps<"div"> & {
@@ -16,6 +20,8 @@ type DataTableProps = ComponentProps<"div"> & {
   empty?: ReactNode
   // 开启表内滚动：限高后容器同时承接横/纵向滚动，表头吸顶，行多列宽时信息不丢失
   scrollable?: boolean
+  // 分页元数据与回调：传入后在表格底部渲染通用分页条；单页（totalPages<=1）时不显示
+  pagination?: TablePaginationProps
   children: ReactNode
 }
 
@@ -27,6 +33,7 @@ export function DataTable({
   children,
   className,
   scrollable = false,
+  pagination,
 }: DataTableProps) {
   const headClass =
     "text-xs font-medium uppercase tracking-wide text-muted-foreground"
@@ -35,6 +42,8 @@ export function DataTable({
     <div
       className={cn(
         "overflow-hidden rounded-xl border bg-card shadow-sm",
+        // scrollable 时撑满父容器高度：滚动区 flex-1，分页条钉在底部始终可见
+        scrollable && "flex h-full flex-col",
         className
       )}
     >
@@ -44,11 +53,12 @@ export function DataTable({
         className="h-1 bg-linear-to-r from-sky-400 to-blue-500"
       />
       {/* 滚动容器直接包住 <table>（不复用 shadcn Table 自带的内层滚动 div，否则表头吸顶
-          会锚定到内层容器而非本容器）；scrollable 时承接横/纵向滚动，否则行为与之前一致 */}
+          会锚定到内层容器而非本容器）；scrollable 时承接横/纵向滚动并占满剩余高度，
+          否则行为与之前一致 */}
       <div
         className={cn(
           "relative w-full",
-          scrollable ? "max-h-[70vh] overflow-auto" : "overflow-x-auto"
+          scrollable ? "min-h-0 flex-1 overflow-auto" : "overflow-x-auto"
         )}
       >
         <table className="w-full caption-bottom text-sm">
@@ -79,6 +89,10 @@ export function DataTable({
           </TableBody>
         </table>
       </div>
+      {/* 分页条：单页数据不占位，避免小表格多出一行空条 */}
+      {pagination && pagination.totalPages > 1 ? (
+        <TablePagination {...pagination} />
+      ) : null}
     </div>
   )
 }

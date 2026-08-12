@@ -1,4 +1,4 @@
-import type { ChatUsage } from "@/lib/schemas/forecast-agent"
+import type { ChatUsage } from "@/lib/schemas/agent-core"
 
 import type { ChatMessage, ChatTool, ToolCall } from "./chat"
 import { chatCompletionStream } from "./chat-stream"
@@ -37,6 +37,8 @@ export async function* runReActLoopStream(params: {
   maxSteps?: number // 默认 4
   // 每步工具轮完成后回调当前累计轨迹（进度落库用）；抛错/拒绝不得中止循环
   onTrace?: (trace: ReactTrace) => void | Promise<void>
+  // 外部取消信号（客户端断开）：透传给每次上游调用，断线即中断在途 LLM 调用省 token
+  signal?: AbortSignal
 }): AsyncGenerator<ReActLoopStreamEvent> {
   const {
     model,
@@ -45,6 +47,7 @@ export async function* runReActLoopStream(params: {
     timeoutMs = 45_000,
     maxSteps = 4,
     onTrace,
+    signal,
   } = params
   const toolDefs: ChatTool[] = tools.map((t) => ({
     name: t.name,
@@ -57,9 +60,14 @@ export async function* runReActLoopStream(params: {
   let usage: ChatUsage | null = null
 
   for (let step = 0; step < maxSteps; step++) {
+    // 已断开：不再发起新一轮调用，直接归 network（断线省 token，不烧新一轮配额）
+    if (signal?.aborted) {
+      yield { type: "result", result: { ok: false, error: "network" } }
+      return
+    }
     const streamRes = await chatCompletionStream(
       { ...model, messages: history, tools: toolDefs },
-      { timeoutMs }
+      { timeoutMs, signal }
     )
     if (!streamRes.ok) {
       yield { type: "result", result: { ok: false, error: streamRes.error } }
@@ -96,7 +104,7 @@ export async function* runReActLoopStream(params: {
       const thoughtText = contentParts.join("")
       yield { type: "thought", text: thoughtText }
       if (thoughtText) yield { type: "rollback", chars: thoughtText.length }
-      const { actions, toolMsgs } = executeToolCalls(tools, stepToolCalls)
+      const { actions, toolMsgs } = await executeToolCalls(tools, stepToolCalls)
       // 逐个 yield 工具事件，间隔展示（推理卡逐条出现，非一次性全跳出）
       for (const [i, a] of actions.entries()) {
         yield { type: "tool", name: a.name, args: a.args, result: a.result }
@@ -111,8 +119,10 @@ export async function* runReActLoopStream(params: {
           // 进度写失败仅丢实时轨迹，不中止推理
         }
       }
+      // 回传历史：assistant 消息带工具调用，content 填本步思考文字（模型据其延续思路；
+      // 无思考文本为空串时仍落 null，与部分 provider 对「工具轮 content 必须 null」的要求兼容）
       history.push(
-        { role: "assistant", content: null, tool_calls: stepToolCalls },
+        { role: "assistant", content: thoughtText || null, tool_calls: stepToolCalls },
         ...toolMsgs
       )
       continue
