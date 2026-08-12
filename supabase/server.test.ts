@@ -9,7 +9,6 @@ vi.mock("next/headers", () => ({ cookies: vi.fn(() => cookieStore) }))
 vi.mock("@supabase/ssr", () => ({ createServerClient: vi.fn() }))
 
 import { createServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
 
 import { createClient } from "./server"
 

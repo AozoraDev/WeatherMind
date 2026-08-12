@@ -74,10 +74,47 @@
     "adviceTitle": "Personalized recommendations",
     "adviceDesc": "Smart outdoor plans from high-precision forecasts and your habits — weather that serves people."
   },
+  "pagination": {
+    "total": "{count} items",
+    "perPage": "Per page",
+    "page": "{page} / {total}",
+    "prev": "Previous",
+    "next": "Next"
+  },
   "dashboard": {
-    "title": "Dashboard",
-    "desc": "Weather features are under development — stay tuned",
     "loading": "Loading…",
+    "home": {
+      "hero": {
+        "title": "Dashboard",
+        "desc": "Multi-source weather collection and AI-powered forecasting platform. Pick an entry below to get started."
+      },
+      "cards": {
+        "aiAgent": {
+          "label": "AI Assistant",
+          "desc": "Chat with AI for weather insights and travel advice"
+        },
+        "forecast": {
+          "label": "Live Forecast",
+          "desc": "Real-time multi-source comparison and one-click daily AI forecast"
+        },
+        "history": {
+          "label": "Weather History",
+          "desc": "Daily snapshots, trend charts and comparisons over the past 7 days"
+        },
+        "cities": {
+          "label": "City Management",
+          "desc": "Manage your tracked cities and weather collection scope"
+        },
+        "logs": {
+          "label": "Collection Logs",
+          "desc": "Inspect weather collection runs and their results"
+        },
+        "settings": {
+          "label": "Settings",
+          "desc": "Manage preferences and AI model connection"
+        }
+      }
+    },
     "sidebar": {
       "dashboard": "Dashboard",
       "aiAgent": "AI Agent",
@@ -89,7 +126,42 @@
     },
     "aiAgent": {
       "title": "AI Agent",
-      "desc": "AI Agent features are under development — stay tuned"
+      "desc": "Chat with AI for weather insights and daily advice",
+      "setup": {
+        "title": "Configure your AI model first",
+        "desc": "You need to configure an AI model before using the AI Agent. Head to Settings to finish setup.",
+        "goSettings": "Configure model"
+      },
+      "conversations": {
+        "new": "New chat",
+        "empty": "No conversations yet — start one above",
+        "delete": "Delete",
+        "deleting": "Deleting…",
+        "deleteTitle": "Delete conversation",
+        "deleteConfirm": "This cannot be undone. Delete this conversation?",
+        "cancel": "Cancel",
+        "defaultTitle": "New chat"
+      },
+      "chat": {
+        "placeholder": "Type a message, Enter to send…",
+        "send": "Send",
+        "sending": "Thinking…",
+        "empty": "Send a message to start the conversation",
+        "errorBanner": "Reply failed",
+        "tokensLabel": "Tokens",
+        "tokensInOut": " (prompt {prompt} · output {output})"
+      },
+      "errors": {
+        "invalidUrl": "Invalid model URL",
+        "blocked": "Model URL blocked (may point to an internal network)",
+        "network": "Network error",
+        "http": "Model service returned an error",
+        "parse": "Couldn't parse the model response",
+        "unauthorized": "Please sign in",
+        "conversationNotFound": "Conversation not found or deleted",
+        "noModel": "No model configured",
+        "generic": "Something went wrong, please try again later"
+      }
     },
     "cities": {
       "title": "Cities",
@@ -202,6 +274,11 @@
           "agent": "AI reasoning",
           "validate": "Validating",
           "settle": "Saving"
+        },
+        "agentLabel": {
+          "supervisor": "Supervisor",
+          "reconcile": "Source cross-check",
+          "risk": "Risk review"
         },
         "riskNone": "None",
         "units": {

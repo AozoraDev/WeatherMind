@@ -68,7 +68,7 @@ afterEach(() => {
 
 describe("backfillTruth", () => {
   it("多源各取昨天观测，取中位数 upsert；返回城市数与落库行数", async () => {
-    const { from, select, eq, upsert, lt } = fakeSupabase()
+    const { from, eq, upsert, lt } = fakeSupabase()
     eq.mockResolvedValue({ data: [cityRow], error: null })
     upsert.mockResolvedValue({ error: null })
     lt.mockResolvedValue({ error: null })
@@ -105,7 +105,7 @@ describe("backfillTruth", () => {
   })
 
   it("某源拉取失败或缺昨天那天的数据 → 该源缺席，仍按剩余源取中位数", async () => {
-    const { from, select, eq, upsert, lt } = fakeSupabase()
+    const { from, eq, upsert, lt } = fakeSupabase()
     eq.mockResolvedValue({ data: [cityRow], error: null })
     upsert.mockResolvedValue({ error: null })
     lt.mockResolvedValue({ error: null })
@@ -133,7 +133,7 @@ describe("backfillTruth", () => {
   })
 
   it("所有源都拿不到昨天观测 → 跳过该城，不 upsert 真值", async () => {
-    const { from, select, eq, upsert, lt } = fakeSupabase()
+    const { from, eq, upsert, lt } = fakeSupabase()
     eq.mockResolvedValue({ data: [cityRow], error: null })
     lt.mockResolvedValue({ error: null })
     historyMock.history[0].mockResolvedValue({ ok: false, error: "http" })
@@ -147,7 +147,7 @@ describe("backfillTruth", () => {
   })
 
   it("cities 查询失败 → 直接返回 0 城 0 行，不触任何 provider", async () => {
-    const { from, select, eq, upsert, lt } = fakeSupabase()
+    const { from, eq } = fakeSupabase()
     eq.mockResolvedValue({ data: null, error: { message: "boom" } })
 
     const result = await backfillTruth({ from } as unknown as SupabaseClient)
@@ -157,7 +157,7 @@ describe("backfillTruth", () => {
   })
 
   it("upsert 失败 → 该城不计入 rows", async () => {
-    const { from, select, eq, upsert, lt } = fakeSupabase()
+    const { from, eq, upsert, lt } = fakeSupabase()
     eq.mockResolvedValue({ data: [cityRow], error: null })
     upsert.mockResolvedValue({ error: { message: "fk" } })
     lt.mockResolvedValue({ error: null })
@@ -173,7 +173,7 @@ describe("backfillTruth", () => {
   })
 
   it("真值轮换：删掉超窗旧行，截止线按东京日前 31 天", async () => {
-    const { from, select, eq, upsert, lt } = fakeSupabase()
+    const { from, eq, lt } = fakeSupabase()
     eq.mockResolvedValue({ data: [], error: null })
     lt.mockResolvedValue({ error: null })
 
@@ -186,7 +186,7 @@ describe("backfillTruth", () => {
   })
 
   it("真值轮换删除失败 → 仅记日志，不阻断主流程", async () => {
-    const { from, select, eq, upsert, lt } = fakeSupabase()
+    const { from, eq, lt } = fakeSupabase()
     eq.mockResolvedValue({ data: [], error: null })
     lt.mockResolvedValue({ error: { message: "perm" } })
     const spy = vi.spyOn(console, "error").mockImplementation(() => {})

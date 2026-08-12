@@ -1,21 +1,86 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 
 import type { ForecastAgentPhase } from "@/lib/forecast-agent/stream/stream"
+import type { ForecastAgentStreamEvent } from "@/lib/forecast-agent/stream/stream"
 import type { ForecastAgentErrorCode } from "@/lib/forecast-agent/common/errors"
-import type { ReactAction, ReactTraceStep } from "@/lib/forecast-agent/agent/react"
 import type { ForecastDbRow } from "@/lib/schemas/forecast-agent"
 import type { ModelConfig } from "@/lib/model-config"
-import { extractDataPayloads, splitSseEvents } from "@/lib/weather/sse"
+import { useSseStream } from "@/hooks/use-sse-stream"
 
-// 前端消费 /api/ai-agent/forecast 的 SSE 流：POST 发起、getReader 逐块读、
-// 复用后端同款 splitSseEvents 解析，delta 逐字追加 markdown、thought 开新推理步、
-// tool 实时归入当前步；rollback 把工具步的思考文字从 markdown 尾部回滚。
-// 这是 rules/fetch-usage.md「客户端不裸 fetch」的受控例外：TanStack Query 面向
-// 一次性快照、无法承载流式增量（queryFn 返回单一值），真流式只能 imperative fetch。
+// 前端消费 /api/ai-agent/forecast 的 SSE 流。传输层（fetch/getReader/逐帧解析/错误码映射）
+// 收敛在 useSseStream，这里只做「事件 → 内容 state」的分发：delta 逐字追加 markdown、
+// thought 开新推理步、tool 实时归入当前步、rollback 把工具步的思考文字从 markdown 尾部回滚、
+// agent_start 开时间线分组（agent_end 仅作边界、不渲染）。done 后以服务端回读行 react_trace 为准。
+// 多 agent 编排后事件统一带 agentId，前端据此把轨迹按 agent 分组渲染时间线。
+// 这是 rules/fetch-usage.md「客户端不裸 fetch」的受控例外（真流式 TanStack Query 无法承载）。
 
 export type ForecastStreamStatus = "idle" | "streaming" | "done" | "error"
+
+// 时间线轨迹步：thought + actions（args 可能字符串或对象——DB 兜底），agent_id 标记所属 agent
+export type TimelineStep = {
+  thought: string | null
+  actions: { name: string; args: string | Record<string, unknown>; result: string }[]
+}
+// 分组后的时间线：同一 agent 的轨迹步一组，组间按启动序保序；旧行无 agent 标记归 "" 单组
+export type TimelineGroup = { agentId: string; steps: TimelineStep[] }
+
+// 按相邻 agent_id 分组保序（无 agent_id 的旧行归入 agentId:"" 单组）。hook 与推理卡共用
+export function groupByAgent(
+  trace: { thought: string | null; actions: TimelineStep["actions"]; agent_id?: string | null }[]
+): TimelineGroup[] {
+  const groups: TimelineGroup[] = []
+  let current: TimelineGroup | null = null
+  for (const step of trace) {
+    const id = step.agent_id ?? ""
+    if (!current || current.agentId !== id) {
+      current = { agentId: id, steps: [] }
+      groups.push(current)
+    }
+    current.steps.push({ thought: step.thought, actions: step.actions })
+  }
+  return groups
+}
+
+// 开组：某 agent 首次出现才建（时间线按启动序保序）；重复 agent_start 幂等
+function ensureGroup(
+  agents: TimelineGroup[],
+  agentId: string
+): TimelineGroup[] {
+  if (agents.some((g) => g.agentId === agentId)) return agents
+  return [...agents, { agentId, steps: [] }]
+}
+
+// 往某 agent 组追加轨迹步（thought 事件开新步）
+function appendStep(
+  agents: TimelineGroup[],
+  agentId: string,
+  step: TimelineStep
+): TimelineGroup[] {
+  return ensureGroup(agents, agentId).map((g) =>
+    g.agentId === agentId ? { ...g, steps: [...g.steps, step] } : g
+  )
+}
+
+// 往某 agent 组当前步追加工具动作（tool 事件）；该 agent 尚无步时兜底开一步
+function appendAction(
+  agents: TimelineGroup[],
+  agentId: string,
+  action: TimelineStep["actions"][number]
+): TimelineGroup[] {
+  return ensureGroup(agents, agentId).map((g) => {
+    if (g.agentId !== agentId) return g
+    const steps = [...g.steps]
+    const last = steps[steps.length - 1]
+    if (last) {
+      steps[steps.length - 1] = { ...last, actions: [...last.actions, action] }
+    } else {
+      steps.push({ thought: null, actions: [action] })
+    }
+    return { ...g, steps }
+  })
+}
 
 export type ForecastStreamState = {
   status: ForecastStreamStatus
@@ -23,7 +88,7 @@ export type ForecastStreamState = {
   markdown: string // 已流式累积的 Markdown 全文（含最终落库后的完整正文）
   row: ForecastDbRow | null // duplicate/done 后服务端回读的行
   errorCode: ForecastAgentErrorCode | null
-  steps: ReactTraceStep[] // 流式期实时累积的轨迹步（思考文字 + 工具调用）；done 后以 row.react_trace 为准
+  agents: TimelineGroup[] // 流式期实时累积的分组时间线；done 后以 row.react_trace 为准
 }
 
 type UseForecastStreamArgs = {
@@ -34,13 +99,20 @@ type UseForecastStreamArgs = {
   onError?: (code: ForecastAgentErrorCode) => void
 }
 
-const IDLE: ForecastStreamState = {
-  status: "idle",
+// 内容态（markdown/phase/row/agents）与传输层状态（status/errorCode）分开存放：
+// onEvent 只更新内容态，终态由 ctx.markDone / ctx.fail 驱动
+type ForecastContent = {
+  phase: ForecastAgentPhase | null
+  markdown: string
+  row: ForecastDbRow | null
+  agents: TimelineGroup[]
+}
+
+const IDLE_CONTENT: ForecastContent = {
   phase: null,
   markdown: "",
   row: null,
-  errorCode: null,
-  steps: [],
+  agents: [],
 }
 
 export function useForecastStream({
@@ -50,216 +122,107 @@ export function useForecastStream({
   onDone,
   onError,
 }: UseForecastStreamArgs) {
-  const [state, setState] = useState<ForecastStreamState>(IDLE)
-  const abortRef = useRef<AbortController | null>(null)
+  const [content, setContent] = useState<ForecastContent>(IDLE_CONTENT)
   const mdRef = useRef("")
 
-  // 参数经 ref 转递：start 在异步循环里读取的是最新 cityId/locale，不依赖闭包身份
-  const argsRef = useRef({ cityId, locale, model, onDone, onError })
-  argsRef.current = { cityId, locale, model, onDone, onError }
-
-  const cancel = useCallback(() => {
-    abortRef.current?.abort()
-    abortRef.current = null
-  }, [])
-
-  const reset = useCallback(() => {
-    cancel()
-    mdRef.current = ""
-    setState(IDLE)
-  }, [cancel])
-
-  const start = useCallback(() => {
-    const args = argsRef.current
-    // 正在流式时忽略重复点击
-    if (state.status === "streaming") return
-    // 未配置模型：本地直接判，不发起请求。抽 const 供异步闭包内窄化（对象属性在闭包内不会收窄）
-    const model = args.model
-    if (!model) {
-      setState({ ...IDLE, status: "error", errorCode: "no-model" })
-      args.onError?.("no-model")
-      return
-    }
-
-    const controller = new AbortController()
-    abortRef.current = controller
-    mdRef.current = ""
-    setState({
-      status: "streaming",
-      phase: null,
-      markdown: "",
-      row: null,
-      errorCode: null,
-      steps: [],
-    })
-
-    const emitError = (code: ForecastAgentErrorCode) => {
-      setState((s) => ({ ...s, status: "error", errorCode: code }))
-      args.onError?.(code)
-    }
-
-    ;(async () => {
-      let res: Response
-      try {
-        res = await fetch("/api/ai-agent/forecast", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            cityId: args.cityId,
-            locale: args.locale,
-            model: {
-              baseUrl: model.baseUrl,
-              apiKey: model.apiKey,
-              model: model.model,
-            },
-          }),
-          signal: controller.signal,
-          cache: "no-store",
-        })
-      } catch {
-        // 断网/Abort：Abort 是主动取消（cancel/reset），不算错误
-        if (controller.signal.aborted) return
-        emitError("provider")
-        return
-      }
-
-      // 流开始前的前置校验失败：非 2xx + JSON error 码
-      if (!res.ok) {
-        let code: ForecastAgentErrorCode = "generic"
-        try {
-          const body = (await res.json()) as { error?: string }
-          if (body.error === "no-model") code = "no-model"
-        } catch {
-          // 非 JSON 响应按 generic 处理
-        }
-        emitError(code)
-        return
-      }
-      if (!res.body) {
-        emitError("provider")
-        return
-      }
-
-      // 逐块读 SSE：splitSseEvents 切完整帧，extractDataPayloads 剥 data: 壳
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ""
-      try {
-        for (;;) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
-          const { blocks, rest } = splitSseEvents(buffer)
-          buffer = rest
-          for (const block of blocks) {
-            for (const payload of extractDataPayloads(block)) {
-              let ev: { type?: string }
-              try {
-                ev = JSON.parse(payload) as { type?: string }
-              } catch {
-                // 本项目服务端帧恒为合法 JSON，解析失败视为流损坏
-                emitError("parse")
-                return
-              }
-              dispatch(ev)
-            }
-          }
-        }
-      } catch {
-        if (controller.signal.aborted) return
-        emitError("provider")
-      } finally {
-        reader.cancel().catch(() => {})
-        abortRef.current = null
-      }
-    })()
-
-    function dispatch(ev: { type?: string }) {
+  const sse = useSseStream<
+    undefined,
+    ForecastAgentErrorCode,
+    ForecastAgentStreamEvent
+  >({
+    url: "/api/ai-agent/forecast",
+    model,
+    buildBody: () => ({ cityId, locale }),
+    onTransportError: "provider",
+    onNoBodyError: "provider",
+    onParseError: "parse",
+    decodeError: (e) => (e === "no-model" ? "no-model" : "generic"),
+    onEvent: (ev, ctx) => {
       switch (ev.type) {
-        case "status": {
-          setState((s) => ({
-            ...s,
-            phase: (ev as { phase?: ForecastAgentPhase }).phase ?? null,
-          }))
-          return
-        }
-        case "delta": {
-          mdRef.current += (ev as { text: string }).text
-          setState((s) => ({ ...s, markdown: mdRef.current }))
-          return
-        }
+        case "status":
+          setContent((s) => ({ ...s, phase: ev.phase }))
+          break
+        case "delta":
+          mdRef.current += ev.text
+          setContent((s) => ({ ...s, markdown: mdRef.current }))
+          break
         case "duplicate":
         case "done": {
-          const row = (ev as { row: ForecastDbRow }).row
+          const row = ev.row
+          // done 后轨迹以服务端回读行 react_trace 为准，清空流式期累积的分组（重新按 agent 分组）
           const md = row.markdown_body ?? mdRef.current
           mdRef.current = md
-          // done 后轨迹以服务端回读行 react_trace 为准，清空流式期累积的轨迹步
-          setState({
-            status: "done",
+          setContent({
             phase: null,
             markdown: md,
             row,
-            errorCode: null,
-            steps: [],
+            agents: groupByAgent(row.react_trace ?? []),
           })
-          args.onDone?.(row)
-          return
+          ctx.markDone()
+          onDone?.(row)
+          break
         }
-        case "thought": {
-          // 工具步边界 + 思考文字：开新步，后续 tool 事件归入该步（空串表示无思考文本）
-          const text = (ev as { text: string }).text
-          setState((s) => ({
+        case "agent_start":
+          // 开时间线分组：某 agent 首次出现才建（顺序 = 启动序）；重复 start 幂等
+          setContent((s) => ({ ...s, agents: ensureGroup(s.agents, ev.agentId) }))
+          break
+        case "agent_end":
+          // 边界事件：不渲染（仅 agent_start 已开组），留作前端可选的回调钩子
+          break
+        case "thought":
+          // 工具步边界 + 思考文字：往所属 agent 组开新步，后续 tool 事件归入该步
+          setContent((s) => ({
             ...s,
-            steps: [...s.steps, { thought: text, actions: [] }],
+            agents: appendStep(s.agents, ev.agentId, {
+              thought: ev.text,
+              actions: [],
+            }),
           }))
-          return
-        }
-        case "rollback": {
+          break
+        case "rollback":
           // 思考文字已按 delta 累积进 markdown，从尾部回滚（不属于最终答案正文）
-          const chars = (ev as { chars: number }).chars
           mdRef.current = mdRef.current.slice(
             0,
-            Math.max(0, mdRef.current.length - chars)
+            Math.max(0, mdRef.current.length - ev.chars)
           )
-          setState((s) => ({ ...s, markdown: mdRef.current }))
-          return
-        }
-        case "tool": {
-          const t = ev as { name: string; args: string; result: string }
-          const action: ReactAction = {
-            name: t.name,
-            args: t.args,
-            result: t.result,
-          }
-          setState((s) => {
-            const steps = [...s.steps]
-            const last = steps[steps.length - 1]
-            if (last) {
-              // 归入当前步（thought 事件已先开步）；无 thought 时的首个 tool 兜底走 else
-              steps[steps.length - 1] = {
-                ...last,
-                actions: [...last.actions, action],
-              }
-            } else {
-              steps.push({ thought: null, actions: [action] })
-            }
-            return { ...s, steps }
-          })
-          return
-        }
-        case "error": {
-          emitError((ev as { code: ForecastAgentErrorCode }).code)
-          return
-        }
-        default:
-          // 未知事件忽略（thought/rollback/tool 已在上面 case 处理）
-          return
+          setContent((s) => ({ ...s, markdown: mdRef.current }))
+          break
+        case "tool":
+          // 归入所属 agent 组当前步（thought 事件已先开步）；该 agent 尚无步时兜底开一步
+          setContent((s) => ({
+            ...s,
+            agents: appendAction(s.agents, ev.agentId, {
+              name: ev.name,
+              args: ev.args,
+              result: ev.result,
+            }),
+          }))
+          break
+        case "error":
+          ctx.fail(ev.code)
+          break
       }
-    }
-  }, [state.status])
+    },
+    onReset: () => {
+      mdRef.current = ""
+      setContent(IDLE_CONTENT)
+    },
+    onError,
+  })
 
-  // 卸载时中断在途请求，避免已卸载组件收到 setState
-  useEffect(() => cancel, [cancel])
+  // 本 hook 的 start 无参，包一层兼容 useSseStream 的 start(params)。
+  // 先解构再进 deps：sse 对象每次渲染都是新引用，直接依赖 sse 会让 start 每次渲染重建
+  const sseStart = sse.start
+  const start = useCallback(() => sseStart(undefined), [sseStart])
 
-  return { state, start, cancel, reset }
+  return {
+    state: {
+      status: sse.status,
+      ...content,
+      errorCode: sse.errorCode,
+    },
+    start,
+    cancel: sse.cancel,
+    reset: sse.reset,
+  }
 }

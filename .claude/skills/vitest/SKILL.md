@@ -27,6 +27,7 @@ description: 写测试前必调——Vitest 单测/组件/集成。范围见 rul
 改 lib 逻辑提交前本地跑，确保新行有断言；覆盖率≠有效性
 
 ## 变异（Stryker）
+- **只在用户主动要求时跑**（明说「跑 Stryker」/`test:stryker`），不做每次需求/改码的默认步骤
 - `pnpm test:stryker`；config 见 `stryker.config.json`（白名单：只变异「有测试」的源文件）
 - 定向：`pnpm test:stryker --mutate "lib/weather/pipeline.ts"`
 - **break 80%** 低于即失败；CI PR 定向变异「有测试」的变更文件，结果看 Actions 日志（stryker.yml）

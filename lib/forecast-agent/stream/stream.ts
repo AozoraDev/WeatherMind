@@ -12,25 +12,35 @@ import {
 } from "../db/db"
 import { FORMULA_VERSION, predict } from "../engine/ensemble"
 import type { ForecastAgentErrorCode } from "../common/errors"
-import { buildForecastAgentMessages } from "../agent/prompt"
-import type { ReactLoopResult } from "../agent/react"
-import { runReActLoopStream } from "../agent/react-stream"
-import { buildTools } from "../agent/tools"
+import {
+  runSupervisedStream,
+  type AgentId,
+  type OrchestratorResult,
+} from "@/lib/agent-core/orchestrator"
+import type { ForecastAgentCtx } from "../agent/prompt"
+import {
+  buildReconcileSpecialist,
+  buildRiskSpecialist,
+  buildSupervisorConfig,
+} from "../agent/specialists"
 import { computeWeights } from "../engine/weights"
 
 // —— 流式编排（真流式 Markdown 输出） ——
-// 唯一生成入口（非流式 runForecastAgent 已随 core 路径废弃删除）：读既有→去重（duplicate）、认领→集成→流式 ReAct→轻量校验→settle，
+// 唯一生成入口（非流式 runForecastAgent 已随 core 路径废弃删除）：读既有→去重（duplicate）、认领→集成→多 agent 编排→轻量校验→settle，
 // 事件逐个产出供 Route Handler 转 SSE。生成期失败统一落库为 failed + failed_at（冷却计时，5 分钟内同 城×日×语言 禁重试），
-// 成功行才留终态；失败以带内 error 事件返回。纯 Markdown 输出走 validateMarkdownDoc 轻量校验（不再有结构化 points）
+// 成功行才留终态；失败以带内 error 事件返回。纯 Markdown 输出走 validateMarkdownDoc 轻量校验（不再有结构化 points）。
+// agent 阶段由 runSupervisedStream 编排主管+两位专家，事件统一带 agentId 透传（前端渲染多 agent 时间线）
 export type ForecastAgentPhase =
   "start" | "read" | "claim" | "ensemble" | "agent" | "validate" | "settle"
 
 export type ForecastAgentStreamEvent =
   | { type: "status"; phase: ForecastAgentPhase }
-  | { type: "delta"; text: string } // Markdown 增量（透传 runReActLoopStream 最终步）
-  | { type: "thought"; text: string } // 工具步模型思考文字（推理卡展示；空串表示步边界）
-  | { type: "rollback"; chars: number } // 思考文字已按 delta 透传，客户端据此从 Markdown 回滚
-  | { type: "tool"; name: string; args: string; result: string } // 某工具已执行（含观察结果，透传）
+  | { type: "delta"; text: string; agentId: AgentId } // Markdown 增量（仅主管 final 步到达前端）
+  | { type: "thought"; text: string; agentId: AgentId } // 某 agent 工具步思考文字
+  | { type: "rollback"; chars: number; agentId: AgentId } // 思考文字已按 delta 透传，客户端据此从 Markdown 回滚
+  | { type: "tool"; name: string; args: string; result: string; agentId: AgentId } // 某 agent 的工具已执行（含观察结果）
+  | { type: "agent_start"; agentId: AgentId } // 某 agent 开始（时间线开组）
+  | { type: "agent_end"; agentId: AgentId; ok: boolean } // 某 agent 结束
   | { type: "duplicate"; row: ForecastDbRow } // 已存在行，不重复生成
   | { type: "done"; row: ForecastDbRow } // 成功落库后回读的行
   | { type: "error"; code: ForecastAgentErrorCode }
@@ -142,25 +152,30 @@ export async function* runForecastAgentStream(
     yield { type: "status", phase: "agent" }
     // 断线时不发起昂贵的 AI 调用：直接抛出让 catch/finally 结束并清理
     if (signal?.aborted) throw new Error("client-aborted")
-    const messages = buildForecastAgentMessages(
-      { nameJa: city.name_ja, nameEn: city.name_en },
+    // 多 agent 编排上下文：确定性结果 + 城市/日期/语言，供专家团注册与提示词组装共用
+    const forecastCtx: ForecastAgentCtx = {
+      city: { nameJa: city.name_ja, nameEn: city.name_en },
       day,
       result,
-      locale
-    )
-    // 流式 ReAct：工具步内部执行（yield tool 提示），最终步逐 delta 产出 Markdown 全文
-    let loopResult: ReactLoopResult | null = null
-    for await (const ev of runReActLoopStream({
+      locale,
+    }
+    // 编排：主管（输出 agent）跑 ReAct 循环，先委托两位专家再综合定稿；
+    // 事件统一带 agentId 透传（agent_start/thought/tool/agent_end），
+    // 专家 delta/rollback 已在编排层丢弃，只有主管最终正文流式到达前端
+    let loopResult: OrchestratorResult | null = null
+    for await (const ev of runSupervisedStream({
       model: {
         baseUrl: model.baseUrl,
         apiKey: model.apiKey,
         model: model.model,
       },
-      messages,
-      tools: buildTools({ result, locale }),
-      timeoutMs: 45_000,
-      maxSteps: 4,
-      // 实时进度：每步把部分轨迹写回本次认领的行（service_role 写）；写失败静默降级
+      ctx: forecastCtx,
+      supervisor: buildSupervisorConfig(forecastCtx),
+      specialists: [
+        buildReconcileSpecialist(forecastCtx),
+        buildRiskSpecialist(forecastCtx),
+      ],
+      // 实时进度：每步把全局轨迹写回本次认领的行（service_role 写）；写失败静默降级
       onTrace: async (trace) => {
         try {
           await settleRow(service, claim.row.id, { react_trace: trace })
@@ -168,13 +183,27 @@ export async function* runForecastAgentStream(
           // 进度写失败仅丢失实时轨迹，不中止推理
         }
       },
+      // 断线信号透传：主管/专家在途 LLM 调用随客户端断开一并中断，省 token
+      signal,
     })) {
-      if (ev.type === "delta") yield { type: "delta", text: ev.text }
-      else if (ev.type === "thought") yield { type: "thought", text: ev.text }
+      if (ev.type === "delta")
+        yield { type: "delta", text: ev.text, agentId: ev.agentId }
+      else if (ev.type === "thought")
+        yield { type: "thought", text: ev.text, agentId: ev.agentId }
       else if (ev.type === "rollback")
-        yield { type: "rollback", chars: ev.chars }
+        yield { type: "rollback", chars: ev.chars, agentId: ev.agentId }
       else if (ev.type === "tool")
-        yield { type: "tool", name: ev.name, args: ev.args, result: ev.result }
+        yield {
+          type: "tool",
+          name: ev.name,
+          args: ev.args,
+          result: ev.result,
+          agentId: ev.agentId,
+        }
+      else if (ev.type === "agent_start")
+        yield { type: "agent_start", agentId: ev.agentId }
+      else if (ev.type === "agent_end")
+        yield { type: "agent_end", agentId: ev.agentId, ok: ev.ok }
       else if (ev.type === "result") {
         loopResult = ev.result
         break

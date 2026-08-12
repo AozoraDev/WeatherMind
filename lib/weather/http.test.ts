@@ -155,4 +155,25 @@ describe("fetchStream", () => {
     const init = mockFetch.mock.calls[0][1] as { signal: AbortSignal }
     expect(init.signal).toBeInstanceOf(AbortSignal)
   })
+
+  it("外部 signal + timeout 合并：中止外部信号 → 请求被取消归 network", async () => {
+    // 客户端断线信号与超时信号用 AbortSignal.any 合并，任一触发即取消；
+    // 此处验证外部信号确实接进了 fetch（断线省 token 的关键路径）
+    const controller = new AbortController()
+    mockFetch.mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("The operation was aborted.", "AbortError"))
+          )
+        })
+    )
+    const pending = fetchStream(
+      "https://x.test/api",
+      { signal: controller.signal },
+      5000
+    )
+    controller.abort()
+    await expect(pending).resolves.toEqual({ ok: false, error: "network" })
+  })
 })

@@ -454,8 +454,14 @@ describe("runReActLoopStream", () => {
         },
       },
     ])
-    // 混合步 history 仍带 assistant+tool 消息（思考文字作 assistant content 回传）
+    // 混合步 history 仍带 assistant+tool 消息：思考文字作 assistant content 回传模型
+    // （续思路用，不再丢失），工具轮内容非空串时不得落 null
     const secondMessages = mockedChatStream.mock.calls[1][0].messages
+    expect(secondMessages.at(-2)).toEqual({
+      role: "assistant",
+      content: "等一下",
+      tool_calls: [TOOL_CALL],
+    })
     expect(secondMessages.at(-1)).toEqual({
       role: "tool",
       tool_call_id: "c1",
@@ -499,5 +505,45 @@ describe("runReActLoopStream", () => {
       result: { ok: false, error: "react-loop" },
     })
     expect(mockedChatStream).toHaveBeenCalledTimes(2)
+  })
+
+  it("signal 透传给每次上游调用（断线取消入口）", async () => {
+    mockedChatStream.mockResolvedValueOnce({
+      ok: true,
+      events: streamOf([
+        { type: "delta", text: "晴。" },
+        { type: "done", content: "晴。", toolCalls: [], usage: null },
+      ]),
+    })
+    const controller = new AbortController()
+    await consume(
+      runReActLoopStream({
+        model: MODEL,
+        messages: INITIAL,
+        tools: TOOLS,
+        signal: controller.signal,
+      })
+    )
+    expect(mockedChatStream.mock.calls[0][1]).toEqual({
+      timeoutMs: 45_000,
+      signal: controller.signal,
+    })
+  })
+
+  it("开始时信号已中止 → 直接 result network，不再发起调用（省 token）", async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const events = await consume(
+      runReActLoopStream({
+        model: MODEL,
+        messages: INITIAL,
+        tools: TOOLS,
+        signal: controller.signal,
+      })
+    )
+    expect(events).toEqual([
+      { type: "result", result: { ok: false, error: "network" } },
+    ])
+    expect(mockedChatStream).not.toHaveBeenCalled()
   })
 })

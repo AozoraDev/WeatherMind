@@ -2,6 +2,7 @@
 
 import { History, RefreshCw } from "lucide-react"
 import { useLocale, useTranslations } from "next-intl"
+import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 
 import { ButtonBlue } from "@/components/ui-preset/button"
@@ -28,6 +29,7 @@ import {
   conditionCategorySchema,
   type ConditionCategory,
 } from "@/lib/schemas/weather"
+import { DEFAULT_PAGE_SIZE, totalPages } from "@/lib/schemas/pagination"
 import type { CityRow, DailyRow } from "@/lib/weather/view-types"
 
 // 合法归一分类集合，用于把 DB 文本安全映射到 i18n 文案（非法值回退源文案）
@@ -50,6 +52,23 @@ export function HistoryView({
   const locale = useLocale()
   const router = useRouter()
   const toast = useToast()
+
+  // 分页为前端切片：服务端仍一次取全量 7 天行供顶部图表使用，表格按页切出；
+  // 页长固定每页 20 条
+  const [page, setPage] = useState(1)
+
+  // 切城市时重置回第 1 页：记录上一次选中城市，渲染期检测变化即重置，
+  // 采用 React 推荐的「prop 变化调整 state」模式，避免 useEffect 同步 setState
+  const [prevCity, setPrevCity] = useState(selectedCityId)
+  if (prevCity !== selectedCityId) {
+    setPrevCity(selectedCityId)
+    setPage(1)
+  }
+  const tableTotalPages = totalPages(rows.length, DEFAULT_PAGE_SIZE)
+  const pageRows = rows.slice(
+    (page - 1) * DEFAULT_PAGE_SIZE,
+    page * DEFAULT_PAGE_SIZE
+  )
 
   // 切换城市 = 导航到带新 ?city= 的历史页，服务端按参数重取单城数据
   const handleCityChange = (cityId: string) => {
@@ -202,8 +221,15 @@ export function HistoryView({
               { label: t("columns.condition") },
             ]}
             empty={rows.length === 0 ? t("noData") : null}
+            pagination={{
+              page,
+              total: rows.length,
+              totalPages: tableTotalPages,
+              // 页长固定每页 20 条，翻页只切页码
+              onPageChange: setPage,
+            }}
           >
-            {rows.map((row) => (
+            {pageRows.map((row) => (
               <DataTableRow key={row.id}>
                 <TableCell className="font-medium">
                   {formatDay(row.day)}

@@ -1,4 +1,4 @@
-import type { ChatUsage } from "@/lib/schemas/forecast-agent"
+import type { ChatUsage } from "@/lib/schemas/agent-core"
 
 import {
   type ChatMessage,
@@ -14,7 +14,9 @@ export type ReactTool = {
   name: string
   description: string
   parameters: Record<string, unknown>
-  execute: (args: Record<string, unknown>) => string // 返回观察结果 JSON 字符串
+  // 返回观察结果 JSON 字符串；允许异步（主 Agent 的 generate_forecast 委托子 Agent 是耗时操作）。
+  // 同步工具直接返回 string，await 兼容两者
+  execute: (args: Record<string, unknown>) => string | Promise<string>
 }
 
 export type ReactAction = { name: string; args: string; result: string }
@@ -52,11 +54,12 @@ export function mergeUsage(
 }
 
 // 工具调用执行 + 消息构造：react-stream.ts 消费，防两处口径漂移。
-// 坏工具调用不中止——把 error JSON 当观察喂回模型让它自纠错（与既有语义一致）
-export function executeToolCalls(
+// 坏工具调用不中止——把 error JSON 当观察喂回模型让它自纠错（与既有语义一致）。
+// 异步：工具 execute 可能返回 Promise（主 Agent 委托子 Agent），整体 await 后统一走既有错误分支
+export async function executeToolCalls(
   tools: ReactTool[],
   toolCalls: ToolCall[]
-): { actions: ReactAction[]; toolMsgs: ChatMessage[] } {
+): Promise<{ actions: ReactAction[]; toolMsgs: ChatMessage[] }> {
   const actions: ReactAction[] = []
   const toolMsgs: ChatMessage[] = []
   for (const tc of toolCalls) {
@@ -65,8 +68,11 @@ export function executeToolCalls(
     if (!tool) {
       result = JSON.stringify({ error: `unknown tool: ${tc.name}` })
     } else {
-      // 参数解析：非法 JSON / 非对象 → 错误观察喂回模型，让它自纠错
-      const parsed = safeParseJson(tc.arguments)
+      // 参数解析：空串/字面 null 视为空对象（无参工具：部分模型会发 "" 或 "null"，否则无参 delegate 会被判非法）；
+      // 其余非法 JSON / 非对象 → 错误观察喂回模型，让它自纠错
+      const raw = tc.arguments.trim()
+      const parsed: { ok: true; value: unknown } | { ok: false } =
+        raw && raw !== "null" ? safeParseJson(raw) : { ok: true, value: {} }
       if (!parsed.ok) {
         result = JSON.stringify({ error: "arguments are not valid JSON" })
       } else if (
@@ -77,7 +83,7 @@ export function executeToolCalls(
         result = JSON.stringify({ error: "arguments must be a JSON object" })
       } else {
         try {
-          result = tool.execute(parsed.value as Record<string, unknown>)
+          result = await tool.execute(parsed.value as Record<string, unknown>)
         } catch {
           result = JSON.stringify({ error: "tool execution failed" })
         }

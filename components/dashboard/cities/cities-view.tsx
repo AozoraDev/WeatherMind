@@ -20,22 +20,28 @@ import {
 } from "@/components/ui/dialog"
 import { TableCell } from "@/components/ui/table"
 import { Link, useRouter } from "@/i18n/navigation"
+import { usePaginatedNavigation } from "@/hooks/use-paginated-navigation"
 import { cn } from "@/lib/utils"
 import { deleteCityAction } from "@/lib/weather/city-actions"
 import { CityError } from "@/lib/weather/errors"
+import type { PageMeta } from "@/lib/weather/pagination"
 import type { CityRow } from "@/lib/weather/view-types"
 
-// 城市页视图：只读表格 + 管理员专属「新增城市」与行内删除（含确认弹窗）
+// 城市页视图：只读表格 + 管理员专属「新增城市」与行内删除（含确认弹窗）；
+// 分页为服务端 URL 分页，翻页/改页长即导航到新查询串，服务端重取一页
 export function CitiesView({
   cities,
+  pagination,
   isAdmin,
 }: {
   cities: CityRow[]
+  pagination: PageMeta
   isAdmin: boolean
 }) {
   const t = useTranslations("dashboard.cities")
   const router = useRouter()
   const toast = useToast()
+  const { goToPage } = usePaginatedNavigation()
 
   const [deleteTarget, setDeleteTarget] = useState<CityRow | null>(null)
 
@@ -89,6 +95,13 @@ export function CitiesView({
             </div>
           ) : null
         }
+        pagination={{
+          page: pagination.page,
+          total: pagination.total,
+          totalPages: pagination.totalPages,
+          // 页长固定每页 20 条，翻页即导航到新页码，服务端按新参数重取一页
+          onPageChange: goToPage,
+        }}
       >
         {cities.map((city) => (
           <DataTableRow key={city.id}>

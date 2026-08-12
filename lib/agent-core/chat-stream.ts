@@ -2,7 +2,7 @@ import {
   chatResponseSchema,
   chatUsageSchema,
   type ChatUsage,
-} from "@/lib/schemas/forecast-agent"
+} from "@/lib/schemas/agent-core"
 import { fetchStream } from "@/lib/weather/http"
 import {
   extractDataPayloads,
@@ -121,9 +121,11 @@ async function* readSseChatStream(res: Response): AsyncGenerator<ChatStreamEvent
               const idx = tc.index ?? 0
               const cur =
                 toolCallsByIndex.get(idx) ?? { id: "", name: "", arguments: "" }
-              // id/name/arguments 按分片追加（OpenAI 把一次工具调用切成多帧）
-              if (typeof tc.id === "string") cur.id += tc.id
-              if (tc.function?.name) cur.name += tc.function.name
+              // OpenAI 惯例：id/name 只在首帧出现、arguments 跨帧追加；但部分兼容端点
+              // 每帧重复完整 id/name，若按追加会拼出重复。故 id/name 首现赋值、arguments 追加
+              if (typeof tc.id === "string" && tc.id && !cur.id) cur.id = tc.id
+              if (tc.function?.name && !cur.name)
+                cur.name = tc.function.name
               if (tc.function?.arguments)
                 cur.arguments += tc.function.arguments
               toolCallsByIndex.set(idx, cur)
@@ -166,7 +168,7 @@ export async function chatCompletionStream(
     messages: ChatMessage[]
     tools?: ChatTool[]
   },
-  opts?: { timeoutMs?: number }
+  opts?: { timeoutMs?: number; signal?: AbortSignal }
 ): Promise<ChatCompletionStreamResult> {
   const baseUrl = params.baseUrl.trim().replace(/\/+$/, "")
   // SSRF 前置与 chatCompletion 共用同一实现，防两处口径漂移
@@ -182,6 +184,8 @@ export async function chatCompletionStream(
         authorization: `Bearer ${params.apiKey}`,
       },
       body: JSON.stringify(buildChatRequestBody(params, true)),
+      // 外部取消信号（客户端断开）随 init.signal 透传，http.ts 内部与超时合并
+      signal: opts?.signal,
     },
     opts?.timeoutMs ?? 30_000
   )

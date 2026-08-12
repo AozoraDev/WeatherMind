@@ -5,7 +5,9 @@ import { useLocale, useTranslations } from "next-intl"
 
 import { DataTable, DataTableRow } from "@/components/ui-preset/data-table"
 import { TableCell } from "@/components/ui/table"
+import { usePaginatedNavigation } from "@/hooks/use-paginated-navigation"
 import { cn } from "@/lib/utils"
+import type { PageMeta } from "@/lib/weather/pagination"
 import type { RunRow } from "@/lib/weather/view-types"
 
 // 状态 → 胶囊配色：running 蓝、success 绿、partial 琥珀、failed 红，未知值灰兜底
@@ -17,10 +19,18 @@ const STATUS_STYLES: Record<string, string> = {
 }
 const STATUS_FALLBACK = "bg-slate-100 text-slate-700 ring-slate-400/20"
 
-// 日志页视图：只读表格，逐行展示一次采集运行的触发方式、成功/失败格数与起止时间
-export function LogsView({ runs }: { runs: RunRow[] }) {
+// 日志页视图：只读表格，逐行展示一次采集运行的触发方式、成功/失败格数与起止时间；
+// 分页为服务端 URL 分页，翻页/改页长即导航到新查询串，服务端重取一页
+export function LogsView({
+  runs,
+  pagination,
+}: {
+  runs: RunRow[]
+  pagination: PageMeta
+}) {
   const t = useTranslations("dashboard.logs")
   const locale = useLocale()
+  const { goToPage } = usePaginatedNavigation()
 
   // 与预报页一致：按 JST 格式化时间；结束时间为空（运行中）时显示占位符
   const formatTime = (iso: string | null) =>
@@ -61,6 +71,13 @@ export function LogsView({ runs }: { runs: RunRow[] }) {
           </div>
         ) : null
       }
+      pagination={{
+        page: pagination.page,
+        total: pagination.total,
+        totalPages: pagination.totalPages,
+        // 页长固定每页 20 条，翻页即导航到新页码，服务端按新参数重取一页
+        onPageChange: goToPage,
+      }}
     >
       {runs.map((run) => (
         <DataTableRow key={run.id}>

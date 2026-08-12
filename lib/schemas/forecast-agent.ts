@@ -4,8 +4,8 @@ import type { ConditionCategory, WeatherSource } from "@/lib/schemas/weather"
 
 // ForecastAgent 的信任边界 schema：
 // - PredictionResult / SourceInput / ForecastDbRow 是内部可信数据（仅类型来源）
-// - chatResponseSchema 是外部 AI 响应（运行时 Zod 校验）
 // - METRICS 是模板指标 id 常量，AI 文本引用与工具参数校验都用它（单一来源）
+// - 通用 AI wire schema（chatResponseSchema/chatUsageSchema）已挪至 lib/schemas/agent-core.ts
 
 // —— 指标 id 常量（AI 引用用，一致性闸门校验） ——
 export const METRICS = {
@@ -71,43 +71,13 @@ export const reactActionSchema = z.object({
 export const reactTraceStepSchema = z.object({
   thought: z.string().nullable(), // 本轮 assistant 文本（无则 null）
   actions: z.array(reactActionSchema),
+  // 多 agent 编排后：步骤所属 agent（supervisor/reconcile/risk）；旧行为 null，前端回落单组时间线
+  agent_id: z.string().nullish(),
 })
 
 export const reactTraceSchema = z.array(reactTraceStepSchema)
 
 export type ReactTrace = z.infer<typeof reactTraceSchema>
-
-// —— OpenAI 兼容 chat 响应（不可信） ——
-// usage 是 OpenAI 兼容接口的标准计费字段（prompt/completion/total），
-// 部分代理缺省，故整块可选；缺省时卡片该行显示 — 而非报错
-export const chatUsageSchema = z.object({
-  prompt_tokens: z.number(),
-  completion_tokens: z.number(),
-  total_tokens: z.number(),
-})
-
-export type ChatUsage = z.infer<typeof chatUsageSchema>
-
-export const chatResponseSchema = z.object({
-  choices: z
-    .array(
-      z.object({
-        message: z.object({
-          content: z.string().nullable(),
-          tool_calls: z
-            .array(
-              z.object({
-                id: z.string(),
-                function: z.object({ name: z.string(), arguments: z.string() }),
-              })
-            )
-            .optional(),
-        }),
-      })
-    )
-    .min(1),
-  usage: chatUsageSchema.optional(),
-})
 
 // —— ForecastAgent 预测行（snake_case，对应 0006 表结构） ——
 // jsonb 字段在 DB 边界断言为具体形状；status 与表 check 约束一致
